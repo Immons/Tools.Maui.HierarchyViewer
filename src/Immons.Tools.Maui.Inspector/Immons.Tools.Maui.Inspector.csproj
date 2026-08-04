@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<RootNamespace>Immons.Tools.Maui.Inspector</RootNamespace>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
+
+		<!-- NuGet package -->
+		<IsPackable>true</IsPackable>
+		<PackageId>Immons.Tools.Maui.Inspector</PackageId>
+		<Title>Immons.Tools.Maui.Inspector</Title>
+		<Description>In-app visual tree inspector (hierarchy viewer) overlay for .NET MAUI. Long-press to inspect margins, paddings, fonts, the full view hierarchy, and edit properties live.</Description>
+		<PackageTags>maui;dotnet-maui;inspector;visual-tree;devtools;debugging;xaml;network;mock;android;ios;windows</PackageTags>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<!-- Drop .nupkg/.snupkg next to the solution under /nugets -->
+		<PackageOutputPath>$(MSBuildThisFileDirectory)..\..\nugets\</PackageOutputPath>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The storage abstraction is internal on purpose: the SQLite backend is ours, not public API. -->
+		<InternalsVisibleTo Include="Immons.Tools.Maui.Inspector.Persistency" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+	</ItemGroup>
+
+	<!-- Web inspector client (served from memory by RemoteServer).
+	     MauiCss would embed the .css a second time — remove it from that glob. -->
+	<ItemGroup>
+		<MauiCss Remove="Web\Assets\**" />
+		<EmbeddedResource Include="Web\Assets\**" />
+	</ItemGroup>
+
+	<!-- Platform file conventions: *.android.cs, *.apple.cs (iOS/Mac Catalyst), *.windows.cs, *.default.cs (other TFMs) -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'android'">
+		<Compile Remove="**/*.android.cs" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'ios' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'maccatalyst'">
+		<Compile Remove="**/*.apple.cs" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">
+		<Compile Remove="**/*.windows.cs" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != ''">
+		<Compile Remove="**/*.default.cs" />
+	</ItemGroup>
+
+</Project>

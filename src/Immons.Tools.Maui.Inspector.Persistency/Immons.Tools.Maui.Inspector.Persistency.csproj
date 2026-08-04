@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<RootNamespace>Immons.Tools.Maui.Inspector.Persistency</RootNamespace>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
+
+		<!-- NuGet package -->
+		<IsPackable>true</IsPackable>
+		<PackageId>Immons.Tools.Maui.Inspector.Persistency</PackageId>
+		<Title>Immons.Tools.Maui.Inspector.Persistency</Title>
+		<Description>SQLite storage backend for Immons.Tools.Maui.Inspector. Replaces the default Preferences store so mock rules, scenarios and breakpoints are written row by row instead of re-serialising the whole set — the difference shows once recorded scenarios reach megabytes. Existing Preferences data is migrated on first run.</Description>
+		<PackageTags>maui;dotnet-maui;inspector;devtools;sqlite;storage;mocks</PackageTags>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageOutputPath>$(MSBuildThisFileDirectory)..\..\nugets\</PackageOutputPath>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Immons.Tools.Maui.Inspector\Immons.Tools.Maui.Inspector.csproj" />
+	</ItemGroup>
+
+</Project>

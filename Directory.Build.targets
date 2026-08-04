@@ -1,0 +1,9 @@
+<Project>
+
+	<!-- Every packable project ships the repo-root README (required by PackageReadmeFile).
+	     Visible="false" keeps the linked file out of the IDE tree. -->
+	<ItemGroup Condition="'$(IsPackable)' == 'true'">
+		<None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+	</ItemGroup>
+
+</Project>

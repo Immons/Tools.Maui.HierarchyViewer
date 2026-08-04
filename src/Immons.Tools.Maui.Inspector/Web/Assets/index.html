@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MAUI Inspector</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header>
+  <div id="headtop">
+    <h1>MAUI Inspector</h1>
+    <span class="ver" id="ver"></span>
+    <span class="win" id="win"></span>
+    <span class="win" id="perfout"></span>
+    <span id="hint"></span>
+  </div>
+  <nav id="viewnav">
+    <button id="nav-inspector" class="tabbtn active" onclick="showView('inspector')">🧭 Inspector</button>
+    <button id="nav-network" class="tabbtn" onclick="showView('network')" title="HTTP requests, breakpoints, mock rules">🌐 Network</button>
+    <button id="nav-logs" class="tabbtn" onclick="showView('logs')" title="ILogger output">📋 Logs</button>
+    <button id="nav-devices" class="tabbtn" onclick="showView('devices')" title="Multi-device hot reload targets">🖧 Devices</button>
+    <span id="globalbar">
+      <button id="wysiwygBtn" onclick="toggleWysiwyg()" title="Write applied edits back to the XAML sources (requires maui-inspector-sync)">✎︎ XAML</button>
+      <button id="perfBtn" onclick="togglePerf()" title="Frame timing overlay (fps / avg / worst)">⏱︎ Perf</button>
+      <button id="slowBtn" onclick="toggleSlow()" title="Slow all animations 5×">🐢 Slow</button>
+      <button onclick="window.open('/api/dump')">📄 Dump</button>
+      <button onclick="dumpDiff(event)" title="First click stores a baseline dump; later clicks show what changed. Shift-click resets.">Δ Diff</button>
+    </span>
+  </nav>
+</header>
+<main>
+  <div id="view-inspector" class="view">
+    <div id="left">
+      <div id="treeactions">
+        <button id="selectBtn" onclick="toggleSelect()" title="Single taps on the device pick elements (no on-device panel)">⌖ Select</button>
+        <button id="overlayBtn" onclick="toggleOverlay()" title="Show/hide the full inspector panel on the device">▤ Panel</button>
+        <button id="measureBtn" onclick="toggleMeasure()">↔︎ Measure</button>
+        <button id="paintBtn" onclick="togglePaint()" title="Outline every element on the device (debug paint)">▦︎ Guides</button>
+        <button id="mirrorBtn" onclick="toggleMirror()" title="Live screenshot of the device — click it to select elements">📱 Mirror</button>
+        <button onclick="clearHl()" title="Clear the on-device highlight">🧹</button>
+        <button onclick="refreshAll()" title="Reload the tree">↻</button>
+      </div>
+      <div id="treebar">
+        <input type="text" id="search" placeholder="Search: type, @x:Name, #AutomationId, “text”…"
+               oninput="applyFilter(this.value)">
+        <button onclick="setAllCollapsed(false)" title="Expand all">⊞</button>
+        <button onclick="setAllCollapsed(true)" title="Collapse all">⊟</button>
+      </div>
+      <div id="tree"></div>
+      <div id="mirrorpanel" hidden><img id="mirrorimg" alt="device screen"></div>
+    </div>
+    <div id="right">
+      <div id="propbar">
+        <input type="text" id="propfilter" placeholder="Filter properties…" oninput="filterProps(this.value)">
+        <button id="histBtn" onclick="toggleHistory()" title="Edit history with undo">⟲ History</button>
+      </div>
+      <div id="props"><div id="empty">Click an element in the tree — it will also be highlighted on the device.<br>
+        Selecting on the device (long-press / tap) highlights here too.</div></div>
+      <div id="histpanel" hidden>
+        <div id="histhead">
+          <b>Edit history</b>
+          <button onclick="toggleHistory()" title="Close">✕</button>
+        </div>
+        <div id="histlist"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-network" class="view fullview" hidden>
+    <div id="netsubnav">
+      <button id="sub-requests" class="tabbtn active" onclick="showNetworkSub('requests')">Requests</button>
+      <button id="sub-mocks" class="tabbtn" onclick="showNetworkSub('mocks')">Mocks</button>
+    </div>
+    <div id="subview-requests"></div>
+    <div id="subview-mocks" hidden></div>
+  </div>
+  <div id="view-logs" class="view fullview" hidden><div id="loglist"></div></div>
+
+  <div id="view-devices" class="view fullview" hidden>
+    <div class="devicesintro">Edits made in this panel are mirrored to every checked target —
+      the same app running on other simulators, emulators or physical devices (matched by XAML source identity).</div>
+    <div id="mirrorsbar">
+      <button onclick="scanMirrors()">🔍 Scan localhost</button>
+      <input type="text" id="mirroraddr" placeholder="host:port (e.g. 192.168.1.20:9295)">
+      <button onclick="addMirrorManually()">+ Add</button>
+    </div>
+    <span id="mirrorslist"></span>
+  </div>
+</main>
+<script src="/js/state.js"></script>
+<script src="/js/views.js"></script>
+<script src="/js/toolbar.js"></script>
+<script src="/js/tree.js"></script>
+<script src="/js/props.js"></script>
+<script src="/js/tabs.js"></script>
+<script src="/js/mock.js"></script>
+<script src="/js/mirrors.js"></script>
+<script src="/js/diff.js"></script>
+<script src="/js/keyboard.js"></script>
+<script src="/js/version.js"></script>
+<script src="/js/sync.js"></script>
+</body>
+</html>

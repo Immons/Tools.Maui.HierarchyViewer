@@ -1,0 +1,50 @@
+namespace Immons.Tools.Maui.Inspector.Inspector;
+
+/// <summary>
+/// The inspector surface consumed by the web server endpoints — everything remote callers
+/// may do with a window without touching the overlay internals.
+/// </summary>
+internal interface IWindowInspector
+{
+    IDispatcher Dispatcher { get; }
+
+    IMauiContext? MauiContext { get; }
+
+    VisualElement? SelectedElement { get; }
+
+    VisualElement? CompareElement { get; }
+
+    bool MeasureMode { get; }
+
+    bool RemoteSelectModeActive { get; }
+
+    bool OverlayShown { get; }
+
+    bool DebugPaintActive { get; }
+
+    IEnumerable<VisualElement> Roots { get; }
+
+    Size WindowSize { get; }
+
+    Rect? BoundsOf(VisualElement element);
+
+    string BuildDump();
+
+    bool RemoteSelectAt(Point windowPoint);
+
+    void RemoteSelect(VisualElement element);
+
+    void RemoteMeasure(VisualElement primary, VisualElement? compare);
+
+    void SetRemoteMeasureMode(bool on);
+
+    void SetRemoteSelectMode(bool on);
+
+    void SetOverlayShown(bool on);
+
+    void SetDebugPaint(bool on);
+
+    void RemoteClearHighlight();
+
+    void RemoteAfterEdit();
+}

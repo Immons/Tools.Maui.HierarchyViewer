@@ -1,0 +1,11 @@
+bin/
+obj/
+/packages/
+/nugets/
+*.nupkg
+*.snupkg
+riderModule.iml
+/_ReSharper.Caches/
+.idea/
+.DS_Store
+*.csproj.user

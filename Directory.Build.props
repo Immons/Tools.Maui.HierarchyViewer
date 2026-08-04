@@ -1,0 +1,23 @@
+<Project>
+
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<!-- Shared NuGet package metadata; versions of both packages move in lockstep. -->
+	<PropertyGroup>
+		<Version>0.9.6</Version>
+		<Authors>Artur Malendowicz "Immons"</Authors>
+		<Company>Immons</Company>
+		<Copyright>Copyright © Immons</Copyright>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/Immons/Tools.Maui.Inspector</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/Immons/Tools.Maui.Inspector</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+</Project>

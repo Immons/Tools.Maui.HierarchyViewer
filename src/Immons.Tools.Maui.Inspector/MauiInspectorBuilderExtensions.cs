@@ -1,0 +1,31 @@
+using Microsoft.Maui.Handlers;
+
+namespace Immons.Tools.Maui.Inspector;
+
+public static class MauiInspectorBuilderExtensions
+{
+    static bool _mapped;
+
+    /// <summary>
+    /// Enables the in-app hierarchy viewer. Typically wrapped in <c>#if DEBUG</c> in the app project.
+    /// </summary>
+    public static MauiAppBuilder UseMauiInspector(this MauiAppBuilder builder, Action<MauiInspectorOptions>? configure = null)
+    {
+        // Must run before any XAML page is inflated so MAUI records element source locations.
+        Features.XamlSync.XamlSource.EnableDiagnostics();
+
+        configure?.Invoke(MauiInspector.Options);
+
+        if (!_mapped)
+        {
+            _mapped = true;
+            WindowHandler.Mapper.AppendToMapping("MauiInspector", (handler, window) =>
+            {
+                if (window is Window w)
+                    MauiInspector.OnWindowHandlerConnected(w);
+            });
+        }
+
+        return builder;
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "scenarios": ["qa-offline", "qa-error"],
+  "activeScenario": "",
+  "rules": [
+    { "id": 0, "enabled": true, "method": "GET", "urlPattern": "*README.md", "name": "readme (offline)",
+      "delayMs": 0, "failMode": "", "shortCircuit": true, "status": 200,
+      "responseBody": "SEEDED OFFLINE BODY", "scenarios": ["qa-offline"] },
+    { "id": 0, "enabled": true, "method": "GET", "urlPattern": "*README.md", "name": "readme (error)",
+      "delayMs": 0, "failMode": "", "shortCircuit": true, "status": 500,
+      "responseBody": "{\"error\":\"boom\"}", "scenarios": ["qa-error"] }
+  ]
+}

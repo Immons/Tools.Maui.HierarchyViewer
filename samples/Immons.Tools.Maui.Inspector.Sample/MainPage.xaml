@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SampleApp.MainPage">
+
+    <ScrollView>
+        <VerticalStackLayout
+            x:Name="RootStack"
+            Padding="24,12"
+            Spacing="16">
+
+            <Label
+                x:Name="TitleLabel"
+                Text="MAUI Inspector demo"
+                FontSize="26"
+                FontAttributes="Bold"
+                TextColor="#512BD4"
+                Margin="0,12,0,0" />
+
+            <Label
+                x:Name="SubtitleLabel"
+                Text="Long-press anywhere (800 ms) to inspect the element under your finger."
+                FontSize="14"
+                TextColor="#666666" />
+
+            <Label
+                x:Name="WebServerLabel"
+                FontSize="14"
+                TextColor="#512BD4"
+                TextDecorations="Underline" />
+
+            <Border
+                x:Name="CardBorder"
+                Background="#F1EDFB"
+                Stroke="#D6CCF0"
+                StrokeThickness="1"
+                Padding="16,12"
+                StrokeShape="RoundRectangle 12">
+                <Grid AutomationId="CardGrid" RowSpacing="6" ColumnSpacing="12"
+                      RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+                    <BoxView Grid.RowSpan="2" WidthRequest="42" HeightRequest="42"
+                             Color="#512BD4" CornerRadius="21" VerticalOptions="Center" />
+                    <Label Grid.Column="1" Text="Card with a Grid inside"
+                           FontSize="16" FontAttributes="Bold" TextColor="#26193F" />
+                    <Label Grid.Column="1" Grid.Row="1"
+                           Text="Margins, paddings and spacing everywhere"
+                           FontSize="12" TextColor="#5B5470" />
+                </Grid>
+            </Border>
+
+            <HorizontalStackLayout Spacing="10">
+                <Button x:Name="CounterBtn" Text="Click me" Clicked="OnCounterClicked" />
+                <Button Text="Outlined" BackgroundColor="Transparent" TextColor="#512BD4"
+                        BorderColor="#512BD4" BorderWidth="1" />
+            </HorizontalStackLayout>
+
+            <Entry Placeholder="An Entry with a margin" Margin="8,0" />
+
+            <Label x:Name="BoundLabel" AutomationId="BoundGreetingLabel" Text="{Binding Greeting}" FontSize="15" TextColor="#666666" />
+
+            <!-- Per-idiom variants sharing one x:Name: the multi-device broadcast falls back to it
+                 when a device renders the other template (AdaptiveTemplateView-style layouts). -->
+            <Label StyleId="IdiomLabel" IsVisible="{OnIdiom Phone=True, Default=False}"
+                   Text="Phone layout" FontSize="14" TextColor="#512BD4" />
+            <Label StyleId="IdiomLabel" IsVisible="{OnIdiom Phone=False, Default=True}"
+                   Text="Tablet layout" FontSize="14" TextColor="#512BD4" />
+
+            <Label x:Name="SpansLabel">
+                <Label.FormattedText>
+                    <FormattedString>
+                        <Span Text="Formatted " TextColor="#512BD4" FontSize="16" />
+                        <Span Text="text" FontAttributes="Bold" FontSize="16" />
+                        <Span Text=" with three spans" TextColor="#666666" FontSize="13" />
+                    </FormattedString>
+                </Label.FormattedText>
+            </Label>
+
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" HeightRequest="64">
+                <BoxView AutomationId="RedBoxView" Color="#FFB3BA" CornerRadius="8" />
+                <BoxView AutomationId="GreenBoxView" Grid.Column="1" Color="#BAFFC9" CornerRadius="8" Margin="4" />
+                <BoxView AutomationId="BlueBoxView" Grid.Column="2" Color="#BAE1FF" CornerRadius="8" Margin="8,2" />
+            </Grid>
+
+            <Image
+                Source="dotnet_bot.png"
+                HeightRequest="140"
+                Aspect="AspectFit" />
+
+            <Button
+                x:Name="InspectorBtn"
+                Text="Open inspector"
+                Clicked="OnOpenInspectorClicked"
+                HorizontalOptions="Fill" />
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>
