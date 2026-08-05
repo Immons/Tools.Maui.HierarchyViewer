@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <pattern id="plaid" width="46" height="46" patternUnits="userSpaceOnUse">
+      <rect width="46" height="46" fill="#c9a06a"/>
+      <rect x="28" width="13" height="46" fill="#8a6a3e" opacity="0.5"/>
+      <rect y="28" width="46" height="13" fill="#8a6a3e" opacity="0.5"/>
+      <rect x="8" width="4" height="46" fill="#ffffff" opacity="0.35"/>
+      <rect y="8" width="46" height="4" fill="#ffffff" opacity="0.35"/>
+    </pattern>
+    <pattern id="plaidDark" width="46" height="46" patternUnits="userSpaceOnUse">
+      <rect width="46" height="46" fill="#a87f4c"/>
+      <rect x="28" width="13" height="46" fill="#6e5230" opacity="0.5"/>
+      <rect y="28" width="46" height="13" fill="#6e5230" opacity="0.5"/>
+    </pattern>
+    <clipPath id="lensClip">
+      <circle cx="592" cy="366" r="92"/>
+    </clipPath>
+  </defs>
+
+  <!-- cień pod postacią -->
+  <ellipse cx="505" cy="885" rx="245" ry="36" fill="#d9d4e4"/>
+
+  <!-- lewa ręka (uniesiona, za peleryną) -->
+  <path d="M 400 532 Q 325 512 288 456" fill="none" stroke="#2d1b4e" stroke-width="72" stroke-linecap="round"/>
+  <path d="M 400 532 Q 325 512 288 456" fill="none" stroke="#8d6fd6" stroke-width="46" stroke-linecap="round"/>
+  <circle cx="280" cy="438" r="46" fill="#8d6fd6" stroke="#2d1b4e" stroke-width="13"/>
+  <circle cx="267" cy="424" r="13" fill="#b79bee" stroke="none"/>
+
+  <!-- nogi -->
+  <rect x="418" y="690" width="84" height="120" rx="26" fill="#8d6fd6" stroke="#2d1b4e" stroke-width="13"/>
+  <rect x="522" y="690" width="84" height="120" rx="26" fill="#8d6fd6" stroke="#2d1b4e" stroke-width="13"/>
+  <!-- buty -->
+  <path d="M 392 815 Q 392 782 425 782 L 484 782 Q 516 782 516 815 L 516 838 Q 516 862 490 862 L 418 862 Q 392 862 392 838 Z" fill="#7a5cc4" stroke="#2d1b4e" stroke-width="13"/>
+  <path d="M 508 815 Q 508 782 541 782 L 600 782 Q 632 782 632 815 L 632 838 Q 632 862 606 862 L 534 862 Q 508 862 508 838 Z" fill="#7a5cc4" stroke="#2d1b4e" stroke-width="13"/>
+
+  <!-- tułów -->
+  <rect x="380" y="432" width="262" height="298" rx="56" fill="#8d6fd6" stroke="#2d1b4e" stroke-width="13"/>
+
+  <!-- peleryna (inverness cape) -->
+  <path d="M 362 474 L 326 642 Q 510 684 696 642 L 660 474 Q 510 432 362 474 Z" fill="url(#plaid)" stroke="#2d1b4e" stroke-width="13" stroke-linejoin="round"/>
+  <path d="M 511 460 L 511 660" fill="none" stroke="#2d1b4e" stroke-width="9" opacity="0.55"/>
+  <circle cx="511" cy="560" r="11" fill="#2d1b4e"/>
+  <circle cx="511" cy="612" r="11" fill="#2d1b4e"/>
+
+  <!-- głowa -->
+  <rect x="335" y="196" width="356" height="298" rx="70" fill="#8d6fd6" stroke="#2d1b4e" stroke-width="13"/>
+  <path d="M 360 250 Q 365 225 392 218" fill="none" stroke="#b79bee" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- panel twarzy -->
+  <rect x="378" y="296" width="272" height="148" rx="46" fill="#ffffff" stroke="#2d1b4e" stroke-width="13"/>
+  <!-- lewe oko + uniesiona brew -->
+  <circle cx="448" cy="374" r="33" fill="#1d1230"/>
+  <circle cx="437" cy="362" r="11" fill="#ffffff"/>
+  <circle cx="459" cy="385" r="5" fill="#ffffff"/>
+  <path d="M 415 328 Q 448 312 481 328" fill="none" stroke="#2d1b4e" stroke-width="11" stroke-linecap="round"/>
+  <!-- uśmiech -->
+  <path d="M 490 420 Q 507 433 524 420" fill="none" stroke="#2d1b4e" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- czapka deerstalker -->
+  <path d="M 322 268 Q 330 132 513 124 Q 696 132 704 268 Q 513 234 322 268 Z" fill="url(#plaid)" stroke="#2d1b4e" stroke-width="13" stroke-linejoin="round"/>
+  <!-- przedni daszek -->
+  <path d="M 322 268 Q 513 240 704 268 Q 620 296 513 296 Q 406 296 322 268 Z" fill="url(#plaidDark)" stroke="#2d1b4e" stroke-width="13" stroke-linejoin="round"/>
+  <!-- nauszniki po bokach -->
+  <path d="M 322 252 Q 300 300 312 352 Q 336 362 356 350 Q 362 296 352 250 Z" fill="url(#plaidDark)" stroke="#2d1b4e" stroke-width="13" stroke-linejoin="round"/>
+  <path d="M 704 252 Q 726 300 714 352 Q 690 362 670 350 Q 664 296 674 250 Z" fill="url(#plaidDark)" stroke="#2d1b4e" stroke-width="13" stroke-linejoin="round"/>
+  <!-- kokardka na czubku (związane nauszniki) -->
+  <ellipse cx="468" cy="122" rx="34" ry="22" fill="#a87f4c" stroke="#2d1b4e" stroke-width="11" transform="rotate(-14 468 122)"/>
+  <ellipse cx="558" cy="122" rx="34" ry="22" fill="#a87f4c" stroke="#2d1b4e" stroke-width="11" transform="rotate(14 558 122)"/>
+  <circle cx="513" cy="126" r="17" fill="#c9a06a" stroke="#2d1b4e" stroke-width="11"/>
+
+  <!-- prawa ręka trzymająca lupę -->
+  <path d="M 626 560 Q 690 580 716 606" fill="none" stroke="#2d1b4e" stroke-width="72" stroke-linecap="round"/>
+  <path d="M 626 560 Q 690 580 716 606" fill="none" stroke="#8d6fd6" stroke-width="46" stroke-linecap="round"/>
+
+  <!-- rączka lupy -->
+  <line x1="660" y1="438" x2="728" y2="608" stroke="#2d1b4e" stroke-width="38" stroke-linecap="round"/>
+  <line x1="660" y1="438" x2="728" y2="608" stroke="#8a5a2a" stroke-width="20" stroke-linecap="round"/>
+
+  <!-- dłoń na rączce -->
+  <circle cx="722" cy="602" r="46" fill="#8d6fd6" stroke="#2d1b4e" stroke-width="13"/>
+  <circle cx="709" cy="588" r="13" fill="#b79bee"/>
+
+  <!-- soczewka: powiększone oko -->
+  <g clip-path="url(#lensClip)">
+    <rect x="490" y="260" width="220" height="220" fill="#8d6fd6"/>
+    <rect x="336" y="250" width="352" height="230" rx="62" fill="#ffffff" stroke="#2d1b4e" stroke-width="16"/>
+    <circle cx="590" cy="368" r="58" fill="#1d1230"/>
+    <circle cx="570" cy="346" r="19" fill="#ffffff"/>
+    <circle cx="609" cy="388" r="9" fill="#ffffff"/>
+    <circle cx="592" cy="366" r="92" fill="#bfe3f2" opacity="0.28"/>
+  </g>
+  <!-- odblask szkła -->
+  <path d="M 527 318 Q 542 293 572 283" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.8"/>
+  <path d="M 512 353 Q 515 338 525 326" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+  <!-- obręcz lupy -->
+  <circle cx="592" cy="366" r="102" fill="none" stroke="#2d1b4e" stroke-width="34"/>
+  <circle cx="592" cy="366" r="102" fill="none" stroke="#e0a83f" stroke-width="18"/>
+  <circle cx="663" cy="440" r="15" fill="#e0a83f" stroke="#2d1b4e" stroke-width="10"/>
+</svg>

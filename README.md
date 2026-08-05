@@ -1,9 +1,15 @@
-# Immons.Tools.Maui.Inspector
+<p align="center">
+  <img src="docs/inspector-logo.png" width="300" alt="MAUI Inspector logo"/>
+</p>
 
-[![NuGet](https://img.shields.io/nuget/v/Immons.Tools.Maui.Inspector.svg?label=Immons.Tools.Maui.Inspector)](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector)
-[![NuGet downloads](https://img.shields.io/nuget/dt/Immons.Tools.Maui.Inspector.svg)](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector)
-[![XAML Updater](https://img.shields.io/nuget/v/Immons.Tools.Maui.Inspector.Sync.svg?label=Immons.Tools.Maui.Inspector.Sync)](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector.Sync)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<h1 align="center">MAUI Inspector</h1>
+
+<p align="center">
+  <a href="https://www.nuget.org/packages/Immons.Tools.Maui.Inspector"><img src="https://img.shields.io/nuget/v/Immons.Tools.Maui.Inspector.svg?label=Immons.Tools.Maui.Inspector" alt="NuGet"/></a>
+  <a href="https://www.nuget.org/packages/Immons.Tools.Maui.Inspector"><img src="https://img.shields.io/nuget/dt/Immons.Tools.Maui.Inspector.svg" alt="NuGet downloads"/></a>
+  <a href="https://www.nuget.org/packages/Immons.Tools.Maui.Inspector.Sync"><img src="https://img.shields.io/nuget/v/Immons.Tools.Maui.Inspector.Sync.svg?label=Immons.Tools.Maui.Inspector.Sync" alt="XAML Updater"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"/></a>
+</p>
 
 **Chrome DevTools for your .NET MAUI app.** Inspect and live-edit the visual tree, mock and
 intercept HTTP traffic, and push the same edits to several devices at once — from a web panel
