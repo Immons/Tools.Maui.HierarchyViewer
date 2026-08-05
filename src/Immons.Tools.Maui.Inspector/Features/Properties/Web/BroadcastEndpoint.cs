@@ -112,8 +112,10 @@ internal sealed class BroadcastEndpoint(
     /// Primary key is the XAML source location — identical across devices for the same build,
     /// and shared by every instance of a DataTemplate. When the device renders a *different*
     /// template (AdaptiveTemplateView, OnIdiom…) that location does not exist here, so we fall
-    /// back to the element's x:Name / AutomationId of the same type: sibling templates usually
-    /// name their corresponding elements the same way.
+    /// back to identifiers of the same type on the counterpart page: AutomationId first, because
+    /// it exists to identify one element, then StyleId (which MAUI also fills from x:Name).
+    /// StyleId is a weaker key — it doubles as the MAUI CSS "#id" selector and nothing keeps it
+    /// unique — so an ambiguous match is refused rather than guessed; see <see cref="OneSourceOnly"/>.
     /// </summary>
     static IEnumerable<VisualElement> FindTargets(IWindowInspector inspector, BroadcastTarget target)
     {
@@ -133,17 +135,36 @@ internal sealed class BroadcastEndpoint(
 
         var candidates = all.Where(e => SameType(e) && SamePage(e)).ToList();
 
+        if (target.AutomationId.Length > 0)
+        {
+            var byAutomationId = OneSourceOnly(candidates.Where(e => e.AutomationId == target.AutomationId).ToList());
+            if (byAutomationId.Count > 0)
+                return byAutomationId;
+        }
+
         if (target.ElementName.Length > 0)
         {
-            var byName = candidates.Where(e => e.StyleId == target.ElementName).ToList();
+            var byName = OneSourceOnly(candidates.Where(e => e.StyleId == target.ElementName).ToList());
             if (byName.Count > 0)
                 return byName;
         }
 
-        if (target.AutomationId.Length > 0)
-            return candidates.Where(e => e.AutomationId == target.AutomationId).ToList();
-
         return [];
+    }
+
+    /// <summary>
+    /// Several matches mean one thing only when they are instances of the same XAML line — the rows
+    /// of a DataTemplate, which is exactly what fan-out should hit. Matches coming from different
+    /// lines are a name collision (two controls sharing a StyleId), and picking either would be a
+    /// guess, so nothing is returned and the panel reports "—".
+    /// </summary>
+    static List<VisualElement> OneSourceOnly(List<VisualElement> matches)
+    {
+        if (matches.Count <= 1)
+            return matches;
+
+        var sources = matches.Select(XamlSource.Describe).Distinct().ToList();
+        return sources is [{ Length: > 0 }] ? matches : [];
     }
 
     static IEnumerable<VisualElement> Walk(VisualElement element)
