@@ -140,12 +140,53 @@ and to the panel's Logs view:
 
 ### Network traffic, mocks and logs (optional)
 
-```csharp
-// see every request in the panel — and make it mockable
-var client = new HttpClient(new MauiInspectorHttpHandler());
-// with DI: services.AddHttpClient("api").AddHttpMessageHandler(() => new MauiInspectorHttpHandler());
+The **Network** and **Mocks** views only see traffic that flows through `MauiInspectorHttpHandler` —
+a standard `DelegatingHandler` you add to your `HttpClient` pipeline. Everything routed through it
+is recorded with full request/response bodies and can be mocked, delayed, failed or paused at
+a breakpoint; anything that bypasses it stays invisible to the inspector.
 
-// stream ILogger output into the Logs view (register AFTER any ClearProviders())
+**Plain `HttpClient`** — the parameterless constructor brings its own `HttpClientHandler`:
+
+```csharp
+using Immons.Tools.Maui.Inspector;
+
+var client = new HttpClient(new MauiInspectorHttpHandler());
+```
+
+**Keeping your existing handler chain** — pass it as the inner handler. The inspector sees the
+request first (so a mock short-circuits the whole chain), then your handlers run unchanged:
+
+```csharp
+var client = new HttpClient(
+    new MauiInspectorHttpHandler(
+        new AuthTokenHandler(new HttpClientHandler())));
+```
+
+**`IHttpClientFactory` / typed clients / Refit** — register it with
+`MauiInspectorHttpHandler.ForClientFactory`. Do **not** `new` the handler here: the factory
+requires `InnerHandler` to be left unassigned and the constructors assign it, so
+`AddHttpMessageHandler(() => new MauiInspectorHttpHandler())` throws
+an `InvalidOperationException` on the first request. `ForClientFactory()` leaves it unassigned:
+
+```csharp
+var api = builder.Services.AddHttpClient<GitHubApiClient>(
+    client => client.BaseAddress = new Uri("https://api.github.com"));
+
+#if DEBUG
+api.AddHttpMessageHandler(MauiInspectorHttpHandler.ForClientFactory);
+#endif
+```
+
+The same `IHttpClientBuilder` call works for named clients (`AddHttpClient("api")`) and
+Refit registrations (`AddRefitClient<IGitHubApi>()`). Register it **last** so the inspector
+sits outermost and records exactly what your other handlers (auth headers, retries) produced.
+The `#if DEBUG` guard matches the Debug-only `PackageReference` from
+[Packages](#packages) — release builds compile without the inspector at all.
+
+**Logs** — stream `ILogger` output into the panel's Logs view:
+
+```csharp
+// register AFTER any ClearProviders()
 builder.Logging.AddMauiInspector();
 ```
 
