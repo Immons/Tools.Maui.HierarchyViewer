@@ -55,14 +55,60 @@ function renderMirrors() {
       saveMirrors();
       renderMirrors();
     };
-    item.append(cb, ' ' + t.label + ' ', del);
+    const text = document.createElement('span');
+    text.className = 'mirrortext';
+    const name = document.createElement('span');
+    name.textContent = ' ' + t.label + ' ';
+    // The address matters: ports get recycled between apps, so the label alone is ambiguous.
+    const addr = document.createElement('span');
+    addr.className = 'mirrorurl';
+    addr.textContent = t.url.replace(/^https?:\/\//, '');
+    text.append(name, addr);
+    item.append(cb, text, ' ', del);
+    item.dataset.url = t.url;
     list.appendChild(item);
   }
+  probeMirrors();
+}
+
+// Marks each target reachable or not — a stale entry pointing at a closed app looks identical
+// to a live one until you try to use it.
+async function probeMirrors() {
+  for (const item of document.querySelectorAll('#mirrorslist .mirroritem')) {
+    const url = item.dataset.url;
+    if (!url) continue;
+    let up = false;
+    try {
+      const ctl = new AbortController();
+      setTimeout(() => ctl.abort(), 900);
+      up = (await fetch(url + '/api/ping', { signal: ctl.signal })).ok;
+    } catch { /* unreachable */ }
+    item.classList.toggle('up', up);
+    item.classList.toggle('down', !up);
+    item.title = up ? 'Reachable at ' + url : 'No answer from ' + url;
+    const target = mirrorTargets.find(t => t.url === url);
+    if (target) target.up = up;
+  }
+  const cleanup = document.getElementById('mirrorclean');
+  if (cleanup) {
+    const dead = mirrorTargets.filter(t => t.up === false).length;
+    cleanup.hidden = dead === 0;
+    cleanup.textContent = '🧹 Remove ' + dead + ' unreachable';
+  }
+}
+
+// Ports are recycled between runs, so a list left alone fills up with entries pointing at apps
+// that no longer exist. They stay checked and edits sent to them go nowhere.
+function removeUnreachableMirrors() {
+  mirrorTargets = mirrorTargets.filter(t => t.up !== false);
+  saveMirrors();
+  renderMirrors();
 }
 
 // Fan-out core: posts the payload to every enabled target and flashes per-target results.
 async function mirrorFanOut(path, payload) {
-  const active = mirrorTargets.filter(t => t.on).slice();
+  const skipped = mirrorTargets.filter(t => t.on && t.up === false).length;
+  const active = mirrorTargets.filter(t => t.on && t.up !== false).slice();
   // "All instances" re-applies the edit locally through the same source-identity matcher,
   // so every element created from that XAML line (all DataTemplate rows) is updated.
   if (allInstances && path !== '/api/mock/rules/scenario')
@@ -78,7 +124,8 @@ async function mirrorFanOut(path, payload) {
     }
   }));
   const hint = document.getElementById('hint');
-  hint.textContent = '🖧 ' + results.join('  ·  ');
+  hint.textContent = '🖧 ' + results.join('  ·  ')
+    + (skipped ? '   ·   ' + skipped + ' unreachable skipped' : '');
   setTimeout(() => { if (hint.textContent.startsWith('🖧')) updateHint(); }, 4000);
 }
 

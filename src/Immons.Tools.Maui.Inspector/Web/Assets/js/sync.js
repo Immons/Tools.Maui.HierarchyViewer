@@ -3,6 +3,7 @@ setInterval(async () => {
   try {
     const r = await fetch('/api/selection');
     const d = await r.json();
+    setConnected(true);
 
     if (d.measure !== measure)
       setMeasureUi(d.measure);
@@ -60,7 +61,11 @@ setInterval(async () => {
       markRows();
       await loadProps(d.id, false);
     }
-  } catch { /* app not reachable right now */ }
+  } catch {
+    // The app is gone (stopped, restarted on another port, adb forward dropped). Say so —
+    // otherwise the panel keeps accepting clicks that quietly do nothing.
+    setConnected(false);
+  }
 }, 1000);
 
 refreshAll();

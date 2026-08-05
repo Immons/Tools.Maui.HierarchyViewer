@@ -23,6 +23,13 @@ an emulator or a physical device.
 
 ![Web inspector](docs/web-inspector.png)
 
+The right side of the header shows the device the panel is talking to, with a green dot while the
+connection is alive. When the app stops, restarts on another port or loses its `adb forward`, the
+dot turns red and the label reads `disconnected` — previously the panel kept accepting clicks that
+quietly went nowhere. The **Devices** view lists each target with its address and marks the ones
+that no longer answer, with one button to drop them (ports are recycled between runs, so stale
+entries accumulate).
+
 The header shows which package build is running (`v0.9.6`) next to the title. The panel also asks
 nuget.org for the newest published version and turns that into `v0.9.6 → 0.9.7 available` when you
 are behind — a plain GET of a public index, silently skipped when there is no connection.

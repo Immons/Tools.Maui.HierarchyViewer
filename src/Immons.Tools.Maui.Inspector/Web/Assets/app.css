@@ -11,6 +11,14 @@ header { padding: 8px 14px 6px; border-bottom: 1px solid var(--divider); }
 #toolbar button { white-space: nowrap; }
 header h1 { font-size: 14px; margin: 0; font-weight: 600; }
 header .win { color: var(--text2); font-size: 12px; }
+/* Connection state sits on the right, next to the device it belongs to. */
+#conn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+#conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); flex: none; }
+#conn.up .dot { background: #4caf50; box-shadow: 0 0 0 3px rgba(76, 175, 80, .18); }
+#conn.up .win { color: #4caf50; }
+#conn.down .dot { background: #e05252; animation: connblink 1.4s infinite; }
+#conn.down .win { color: #e05252; }
+@keyframes connblink { 50% { opacity: .3; } }
 header .ver { color: var(--text2); font-size: 12px; margin-left: 6px; }
 header .ver.verok::before { content: '✓ '; color: #6aa84f; }
 header .ver.verold { color: #d08770; font-weight: 600; }
@@ -166,3 +174,8 @@ input.bad { border-color: #e05252; }
 @keyframes recblink { 50% { opacity: 0.35; } }
 
 .mockoff { border-left: 3px solid #d08770; padding-left: 8px; }
+
+.mirrortext { display: inline-flex; flex-direction: column; line-height: 1.25; vertical-align: middle; }
+.mirrorurl { color: var(--text2); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mirroritem.up { border-left: 3px solid #4caf50; }
+.mirroritem.down { border-left: 3px solid #e05252; opacity: .6; }

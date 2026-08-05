@@ -10,9 +10,11 @@
   <div id="headtop">
     <h1>MAUI Inspector</h1>
     <span class="ver" id="ver"></span>
-    <span class="win" id="win"></span>
     <span class="win" id="perfout"></span>
     <span id="hint"></span>
+    <span id="conn" class="conn" title="Connection to the app">
+      <span class="dot"></span><span class="win" id="win"></span>
+    </span>
   </div>
   <nav id="viewnav">
     <button id="nav-inspector" class="tabbtn active" onclick="showView('inspector')">🧭 Inspector</button>
@@ -81,6 +83,8 @@
       the same app running on other simulators, emulators or physical devices (matched by XAML source identity).</div>
     <div id="mirrorsbar">
       <button onclick="scanMirrors()">🔍 Scan localhost</button>
+      <button id="mirrorclean" onclick="removeUnreachableMirrors()" hidden
+              title="Drop targets that no longer answer — ports get reused between runs"></button>
       <input type="text" id="mirroraddr" placeholder="host:port (e.g. 192.168.1.20:9295)">
       <button onclick="addMirrorManually()">+ Add</button>
     </div>
@@ -97,6 +101,7 @@
 <script src="/js/mirrors.js"></script>
 <script src="/js/diff.js"></script>
 <script src="/js/keyboard.js"></script>
+<script src="/js/connection.js"></script>
 <script src="/js/version.js"></script>
 <script src="/js/sync.js"></script>
 </body>
