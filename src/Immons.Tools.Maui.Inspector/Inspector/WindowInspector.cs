@@ -24,6 +24,7 @@ internal sealed partial class WindowInspector
     {
         _window = window;
         _options = options;
+        AppForegroundState.Track(window);
     }
 
     /// <summary>Called every time the window (re)connects to a platform handler.</summary>

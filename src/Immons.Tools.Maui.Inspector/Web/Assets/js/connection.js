@@ -1,28 +1,35 @@
 // Connection state of the panel ↔ app link. Without it the panel looks alive after the app
-// goes away: buttons still click, nothing happens.
-let connected = null;   // null = not known yet, so the first result always renders
+// goes away: buttons still click, nothing happens. Three states, because "reachable" and
+// "able to act" are not the same thing — a backgrounded app still answers HTTP while its main
+// thread is parked, so edits would queue up and appear to do nothing.
+let connState = '';   // '' = not known yet, so the first result always renders
+let connDevice = '';
 
-function setConnected(up) {
-  if (up === connected) return;
-  connected = up;
+function setConnected(up, foreground) {
+  const state = !up ? 'down' : (foreground === false ? 'bg' : 'up');
+  if (state === connState) return;
+  connState = state;
 
   const host = document.getElementById('conn');
-  if (!host) return;
-  host.classList.toggle('up', up);
-  host.classList.toggle('down', !up);
-  host.title = up
-    ? 'Connected to the app'
-    : 'No connection to the app — it may have been stopped, restarted on another port, or lost its adb forward';
-
   const label = document.getElementById('win');
-  if (!up && label) {
-    // Keep what we knew about the device, just say it is gone.
-    connection_lastDevice = connection_lastDevice || label.textContent;
-    label.textContent = 'disconnected';
-  } else if (up && label && connection_lastDevice) {
-    label.textContent = connection_lastDevice;
-    connection_lastDevice = '';
+  if (!host || !label) return;
+
+  host.classList.toggle('up', state === 'up');
+  host.classList.toggle('bg', state === 'bg');
+  host.classList.toggle('down', state === 'down');
+
+  if (state === 'up') {
+    host.title = 'Connected to the app';
+    if (connDevice) { label.textContent = connDevice; connDevice = ''; }
+  } else {
+    if (!connDevice) connDevice = label.textContent;
+    if (state === 'bg') {
+      host.title = 'The app is not responding — most likely in the background (iOS suspends the whole process). '
+        + 'Bring it back on screen; edits made now would not apply.';
+      label.textContent = 'app in background';
+    } else {
+      host.title = 'No connection to the app — it may have been stopped, restarted on another port, or lost its adb forward';
+      label.textContent = 'disconnected';
+    }
   }
 }
-
-let connection_lastDevice = '';

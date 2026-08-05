@@ -26,7 +26,10 @@ an emulator or a physical device.
 The right side of the header shows the device the panel is talking to, with a green dot while the
 connection is alive. When the app stops, restarts on another port or loses its `adb forward`, the
 dot turns red and the label reads `disconnected` — previously the panel kept accepting clicks that
-quietly went nowhere. The **Devices** view lists each target with its address and marks the ones
+quietly went nowhere. A third, amber state covers the case that looks identical from the outside:
+iOS suspends a backgrounded app **including its HTTP server**, so requests neither succeed nor fail,
+they simply never return. The panel times those out and says `app in background` instead of staying
+green on stale data. The **Devices** view lists each target with its address and marks the ones
 that no longer answer, with one button to drop them (ports are recycled between runs, so stale
 entries accumulate).
 

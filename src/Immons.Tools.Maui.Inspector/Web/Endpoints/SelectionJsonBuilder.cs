@@ -1,3 +1,4 @@
+using Immons.Tools.Maui.Inspector.Inspector;
 using System.Text.Json.Nodes;
 
 namespace Immons.Tools.Maui.Inspector.Web.Endpoints;
@@ -34,6 +35,8 @@ internal sealed class SelectionJsonBuilder(
         result["overlay"] = inspector.OverlayShown;
         result["paint"] = inspector.DebugPaintActive;
         result["sync"] = sync.Connected;
+        // The server answers while backgrounded, but edits queued on the main thread do not run.
+        result["fg"] = AppForegroundState.IsForeground;
         result["slow"] = SlowAnimations.Enabled;
         return result.ToJsonString();
     }

@@ -16,6 +16,8 @@ header .win { color: var(--text2); font-size: 12px; }
 #conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); flex: none; }
 #conn.up .dot { background: #4caf50; box-shadow: 0 0 0 3px rgba(76, 175, 80, .18); }
 #conn.up .win { color: #4caf50; }
+#conn.bg .dot { background: #e0a852; }
+#conn.bg .win { color: #e0a852; }
 #conn.down .dot { background: #e05252; animation: connblink 1.4s infinite; }
 #conn.down .win { color: #e05252; }
 @keyframes connblink { 50% { opacity: .3; } }

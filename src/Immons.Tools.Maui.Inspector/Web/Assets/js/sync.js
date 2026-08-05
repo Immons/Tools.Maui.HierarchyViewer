@@ -1,9 +1,19 @@
 // Device ↔ web sync: poll selection, compare target and mode flags every second.
 setInterval(async () => {
   try {
-    const r = await fetch('/api/selection');
+    // A backgrounded app does not refuse the connection — iOS suspends the whole process, so the
+    // request simply never comes back. Without this timeout the poll hangs forever and the panel
+    // keeps showing the last (green) state while nothing works.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 2500);
+    let r;
+    try {
+      r = await fetch('/api/selection', { signal: ctl.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     const d = await r.json();
-    setConnected(true);
+    setConnected(true, d.fg !== false);
 
     if (d.measure !== measure)
       setMeasureUi(d.measure);
@@ -61,10 +71,12 @@ setInterval(async () => {
       markRows();
       await loadProps(d.id, false);
     }
-  } catch {
-    // The app is gone (stopped, restarted on another port, adb forward dropped). Say so —
-    // otherwise the panel keeps accepting clicks that quietly do nothing.
-    setConnected(false);
+  } catch (e) {
+    // Timed out = the process is alive but parked (backgrounded). Refused = it is really gone.
+    if (e && e.name === 'AbortError')
+      setConnected(true, false);
+    else
+      setConnected(false);
   }
 }, 1000);
 
