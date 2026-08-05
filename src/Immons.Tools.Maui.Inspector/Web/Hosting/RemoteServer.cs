@@ -63,7 +63,8 @@ internal sealed class RemoteServer
             try
             {
                 server = new RemoteServer(candidate, EndpointFactory.CreateAll());
-                if (await RespondsWithOurNonce(candidate).ConfigureAwait(false))
+                var (verified, probeError) = await ProbeForOurNonce(candidate).ConfigureAwait(false);
+                if (verified)
                 {
                     _instance = server;
                     StartError = null;
@@ -74,7 +75,7 @@ internal sealed class RemoteServer
                     return;
                 }
 
-                StartError = $"port {candidate} is shadowed by another process";
+                StartError = probeError;
                 server.StopListening();
             }
             catch (Exception ex)
@@ -109,17 +110,30 @@ internal sealed class RemoteServer
         InspectorServices.Logs.Write(level, "MauiInspector", message);
     }
 
-    static async Task<bool> RespondsWithOurNonce(int port)
+    /// <summary>
+    /// Success = our own listener answered the loopback ping with this instance's nonce.
+    /// A response carrying a different nonce means another process really owns the port;
+    /// a transport failure is reported as such — the two used to be conflated, sending
+    /// users hunting for a port conflict that never existed.
+    /// </summary>
+    static async Task<(bool Verified, string? Error)> ProbeForOurNonce(int port)
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+            // Deliberately the managed handler: the platform one (AndroidMessageHandler)
+            // enforces the app's cleartext policy — which with targetSdk 28+ blocks plain
+            // HTTP even to 127.0.0.1 — and routes through the system proxy/VPN. Neither
+            // may veto a request this process makes to itself over loopback.
+            using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false });
+            client.Timeout = TimeSpan.FromSeconds(2);
             var body = await client.GetStringAsync($"http://127.0.0.1:{port}{ApiRoutes.Broadcast.Ping}").ConfigureAwait(false);
-            return body.Contains(InstanceId, StringComparison.Ordinal);
+            return body.Contains(InstanceId, StringComparison.Ordinal)
+                ? (true, null)
+                : (false, $"port {port} is shadowed by another process");
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            return (false, $"self-probe on port {port} failed: {ex.Message}");
         }
     }
 

@@ -199,6 +199,37 @@ MauiInspector.Toggle();
 MauiInspector.Inspect(someVisualElement);  // open with a specific element selected
 ```
 
+### Troubleshooting the connection
+
+**The startup log says `self-probe on port N failed: …`** — the server bound the port but could
+not reach itself over loopback; the message carries the underlying reason. Before 0.9.9 this was
+misreported as `port N is shadowed by another process`, and the most common trigger was Android's
+cleartext policy (`Cleartext HTTP traffic to 127.0.0.1 not permitted` with `targetSdk` 28+) —
+0.9.9 probes with a handler that policy doesn't apply to, so if you still see it, take the quoted
+reason at face value.
+
+**The startup log says `port N is shadowed by another process`** — this one is real: something
+answered the probe with a wrong instance id. Usually a previous run of the same app is still
+alive; kill it or let the auto-assign pick the next port.
+
+**The browser on your desktop can't connect (or spins forever) even though the app says
+`web inspector listening`** — the URL is served from *inside* the app, so the browser's route to
+it is what usually breaks:
+
+- **Android emulator** — the emulator has its own network stack; without
+  `adb forward tcp:<port> tcp:<port>` nothing on the host answers `localhost:<port>`.
+- **A connection that hangs instead of being refused** is typically a *different* process holding
+  the port on your machine. iOS **simulator** apps run as host processes and hold their inspector
+  ports; when iOS suspends one in the background, its socket still accepts connections but never
+  responds — and an `adb forward` to the same port number silently loses that fight. Check with
+  `lsof -nP -iTCP:9295-9309 -sTCP:LISTEN` (macOS), then either foreground/kill the stale
+  simulator app, or forward to a shifted host port and browse to that:
+  `adb forward tcp:9305 tcp:9295` → open `http://localhost:9305`.
+- **iOS simulator** — bring the app to the foreground: iOS suspends a backgrounded app together
+  with its HTTP server, so the panel shows `app in background` and requests time out.
+- **Physical devices** — `localhost` won't do; use the device's IP (Android additionally needs
+  the `INTERNET` permission, present by default) or, on Android, `adb forward` over USB.
+
 ## Supported platforms
 
 | Platform | TFM | Activation |
