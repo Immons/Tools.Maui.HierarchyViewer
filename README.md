@@ -40,8 +40,8 @@ green on stale data. The **Devices** view lists each target with its address and
 that no longer answer, with one button to drop them (ports are recycled between runs, so stale
 entries accumulate).
 
-The header shows which package build is running (`v0.9.9`) next to the title. The panel also asks
-nuget.org for the newest published version and turns that into `v0.9.9 → 0.9.10 available` when you
+The header shows which package build is running (`v0.9.12`) next to the title. The panel also asks
+nuget.org for the newest published version and turns that into `v0.9.12 → 0.9.13 available` when you
 are behind — a plain GET of a public index, silently skipped when there is no connection.
 
 The tree, the property sheet and the device stay in sync both ways: click an element in the
@@ -185,7 +185,7 @@ built-in sections. `ImageSource` properties accept a bundled file name or an abs
 
 ```xml
 <!-- Debug-only reference keeps the inspector out of release builds entirely -->
-<PackageReference Include="Immons.Tools.Maui.Inspector" Version="0.9.9" Condition="'$(Configuration)' == 'Debug'" />
+<PackageReference Include="Immons.Tools.Maui.Inspector" Version="0.9.12" Condition="'$(Configuration)' == 'Debug'" />
 ```
 
 Targets `net10.0-ios`, `net10.0-android` and `net10.0-windows` (plus a no-op `net10.0`), MIT licensed.
