@@ -42,7 +42,7 @@ internal sealed class PropertyEditor(EditorKind kind, IReadOnlyList<string>? cho
             // delete the "{Binding …}" attribute from the source file).
             var value = XamlValue == null ? XamlChangeLog.RemoveMarker : XamlValue(XamlChangeLog.RemoveMarker);
             if (value != null)
-                InspectorServices.XamlChanges.Record(XamlTarget, XamlAttribute, value);
+                InspectorServices.Current.XamlChanges.Record(XamlTarget, XamlAttribute, value);
         }
 
         return ok;
@@ -64,7 +64,7 @@ internal sealed class PropertyEditor(EditorKind kind, IReadOnlyList<string>? cho
         {
             var xamlValue = XamlValue != null ? XamlValue(text) : text.Trim();
             if (xamlValue != null)
-                InspectorServices.XamlChanges.Record(XamlTarget, XamlAttribute, xamlValue);
+                InspectorServices.Current.XamlChanges.Record(XamlTarget, XamlAttribute, xamlValue);
         }
 
         return ok;

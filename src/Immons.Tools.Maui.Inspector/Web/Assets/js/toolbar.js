@@ -93,10 +93,9 @@ function toggleMirror() {
 // Click on the mirror selects the element under the cursor (window-dp coordinates).
 document.getElementById('mirrorimg').addEventListener('click', (e) => {
   if (!windowDp) return;
-  const img = e.target;
-  const rect = img.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width * windowDp[0];
-  const y = (e.clientY - rect.top) / rect.height * windowDp[1];
+  // mirrorPointToDp (structure.js) is rotation-aware — the axes swap when the
+  // screenshot's orientation disagrees with the last-known window size.
+  const [x, y] = mirrorPointToDp(e);
   fetch('/api/select-at', { method: 'POST', body: JSON.stringify({ x: x, y: y }) });
 });
 

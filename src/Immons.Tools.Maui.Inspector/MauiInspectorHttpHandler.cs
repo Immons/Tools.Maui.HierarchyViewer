@@ -36,5 +36,5 @@ public sealed class MauiInspectorHttpHandler : DelegatingHandler
     public static MauiInspectorHttpHandler ForClientFactory() => new(leaveInnerHandlerUnassigned: true);
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-        Inspector.InspectorServices.Interceptor.SendAsync(request, base.SendAsync, cancellationToken);
+        Inspector.InspectorServices.Current.Interceptor.SendAsync(request, base.SendAsync, cancellationToken);
 }

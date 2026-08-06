@@ -14,7 +14,8 @@ internal sealed class ChangesEndpoint(IXamlChangeLog xamlChanges, ISyncTracker s
         long since = 0;
         if (long.TryParse(context.Request.QueryString["since"], out var parsed))
             since = parsed;
-        await HttpResponse.WriteJson(context, xamlChanges.ToJson(since)).ConfigureAwait(false);
+        var includeStructural = (context.Request.QueryString["caps"] ?? "").Contains("el", StringComparison.Ordinal);
+        await HttpResponse.WriteJson(context, xamlChanges.ToJson(since, includeStructural)).ConfigureAwait(false);
         return true;
     }
 }

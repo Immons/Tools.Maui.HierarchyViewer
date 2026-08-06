@@ -43,12 +43,22 @@ internal static class ApiRoutes
         public const string SelectVerb = "select";
         public const string PropertyVerb = "property";
         public const string ActionVerb = "action";
+        public const string StructureVerb = "structure";
+    }
+
+    public static class Structure
+    {
+        public const string Catalog = "/api/structure/catalog";
+        public const string AddAt = "/api/structure/add-at";
+        public const string DropTarget = "/api/structure/drop-target";
+        public const string Hit = "/api/structure/hit";
     }
 
     public static class History
     {
         public const string List = "/api/history";
         public const string Undo = "/api/history/undo";
+        public const string Redo = "/api/history/redo";
     }
 
     public static class Network

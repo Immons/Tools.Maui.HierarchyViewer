@@ -8,7 +8,8 @@ internal sealed class ElementEndpoint(
     IActiveInspectorProvider inspectors,
     IElementRegistry elements,
     IElementJsonBuilder elementJson,
-    IPropertyCommands commands) : IHttpEndpoint
+    IPropertyCommands commands,
+    IStructureCommands structure) : IHttpEndpoint
 {
     public async Task<bool> TryHandle(HttpListenerContext context, string method, string path)
     {
@@ -48,6 +49,41 @@ internal sealed class ElementEndpoint(
                 : commands.RunAction(id, section, name)).ConfigureAwait(false);
 
             await HttpResponse.WriteOk(context, ok).ConfigureAwait(false);
+            return true;
+        }
+
+        if (method == HttpVerbs.Post && verb == "structure")
+        {
+            var node = await RequestBody.ReadJson(context).ConfigureAwait(false);
+            var op = node?["op"]?.GetValue<string>() ?? "";
+            var type = node?["type"]?.GetValue<string>() ?? "";
+            var delta = node?["delta"]?.GetValue<int>() ?? 0;
+
+            var parentId = node?["parent"]?.GetValue<int>() ?? 0;
+            var sourceId = node?["source"]?.GetValue<int>() ?? 0;
+            var force = node?["force"]?.GetValue<bool>() ?? false;
+            var siblingId = node?["sibling"]?.GetValue<int>() ?? 0;
+            var beforeSibling = node?["before"]?.GetValue<bool>() ?? false;
+
+            var (newId, error) = await mainThread.RunAsync(() => op switch
+            {
+                "add" => structure.Add(id, type),
+                "remove" => (0, structure.Remove(id)),
+                "move" => (0, structure.Move(id, delta)),
+                "reparent" => (0, structure.Reparent(id, parentId, siblingId, beforeSibling)),
+                "wrap" => structure.Wrap(id, type),
+                "paste" => structure.Paste(id, sourceId, force),
+                "unwrap" => (0, structure.UnwrapElement(id)),
+                _ => (0, $"unknown structure op: {op}"),
+            }).ConfigureAwait(false);
+
+            var json = new System.Text.Json.Nodes.JsonObject
+            {
+                ["ok"] = error == null,
+                ["id"] = newId,
+                ["error"] = error,
+            }.ToJsonString();
+            await HttpResponse.WriteJson(context, json).ConfigureAwait(false);
             return true;
         }
 

@@ -25,6 +25,65 @@ internal sealed partial class WindowInspector
         _window = window;
         _options = options;
         AppForegroundState.Track(window);
+        HookModalStack();
+    }
+
+    /// <summary>
+    /// On Android every modal page opens in its own platform window (a Dialog) above the
+    /// activity, so the overlay layers must move to the new topmost window whenever the
+    /// modal stack changes — and back down when it unwinds. On the other platforms the
+    /// rehome is a cheap re-add to the same host.
+    /// </summary>
+    void HookModalStack()
+    {
+        if (Application.Current is not { } app)
+            return;
+        app.ModalPushed += OnModalPushed;
+        app.ModalPopped += OnModalPopped;
+    }
+
+    void UnhookModalStack()
+    {
+        if (Application.Current is not { } app)
+            return;
+        app.ModalPushed -= OnModalPushed;
+        app.ModalPopped -= OnModalPopped;
+    }
+
+    void OnModalPushed(object? sender, ModalPushedEventArgs e)
+    {
+        // The platform window hosting the modal may not exist yet — rehome once it does.
+        if (e.Modal is { } modal && modal.Handler?.PlatformView == null)
+        {
+            modal.Loaded += OnceLoaded;
+            return;
+
+            void OnceLoaded(object? s, EventArgs args)
+            {
+                modal.Loaded -= OnceLoaded;
+                RehomeLayers();
+            }
+        }
+
+        RehomeLayers();
+    }
+
+    void OnModalPopped(object? sender, ModalPoppedEventArgs e) => RehomeLayers();
+
+    void RehomeLayers()
+    {
+        if (!IsShown)
+            return;
+
+        _window.Dispatcher.Dispatch(() =>
+        {
+            if (!IsShown)
+                return;
+            RemoveLayersPlatform();
+            AddLayersPlatform();
+            RefreshTree();
+            UpdateHighlight();
+        });
     }
 
     /// <summary>Called every time the window (re)connects to a platform handler.</summary>
@@ -37,7 +96,11 @@ internal sealed partial class WindowInspector
             AttachPlatform();
     }
 
-    public void Detach() => DetachPlatform();
+    public void Detach()
+    {
+        UnhookModalStack();
+        DetachPlatform();
+    }
 
     public void Show(Point? windowPoint)
     {
@@ -98,10 +161,18 @@ internal sealed partial class WindowInspector
                     SelectElement(_selected);
                 else
                 {
-                    var sections = InspectorServices.Properties.Collect(_selected, GetRectInWindow(_selected));
+                    var sections = InspectorServices.Current.Properties.Collect(_selected, GetRectInWindow(_selected));
                     _panelLayer.ShowSelection(_selected, sections, ParentChain(_selected), scrollTree: false);
                 }
             }
+        };
+        _panelLayer.StructureMenuEdited += select =>
+        {
+            RefreshTree();
+            if (select != null)
+                SelectElement(select);
+            else if (_selected != null)
+                UpdateHighlight();
         };
         _panelLayer.SelectModeToggled += SetSelectMode;
         _panelLayer.MeasureModeToggled += SetMeasureMode;
@@ -121,7 +192,7 @@ internal sealed partial class WindowInspector
                 return;
             OnPropertyEdited();
             // Rebuild the sections (span/definition counts changed) keeping the scroll position.
-            var sections = InspectorServices.Properties.Collect(element, GetRectInWindow(element));
+            var sections = InspectorServices.Current.Properties.Collect(element, GetRectInWindow(element));
             _panelLayer.ShowSelection(element, sections, ParentChain(element), scrollTree: false, preservePropsScroll: true);
         };
         _panelLayer.ToolsDispatcher = _window.Dispatcher;
@@ -207,4 +278,5 @@ internal sealed partial class WindowInspector
     private partial Rect? GetRectInWindowPlatform(VisualElement element);
     private partial Point GetLayerOriginPlatform();
     private partial double GetBottomInsetPlatform();
+    private partial byte[]? CapturePngPlatform();
 }

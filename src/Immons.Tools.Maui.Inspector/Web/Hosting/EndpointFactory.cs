@@ -9,15 +9,16 @@ internal static class EndpointFactory
     {
         IActiveInspectorProvider inspectors = new ActiveInspectorProvider();
         IMainThreadDispatcher mainThread = new MainThreadDispatcher(inspectors);
-        var elements = InspectorServices.Elements;
-        var history = InspectorServices.History;
-        var xamlChanges = InspectorServices.XamlChanges;
-        ISyncTracker sync = InspectorServices.Sync;
+        var elements = InspectorServices.Current.Elements;
+        var history = InspectorServices.Current.History;
+        var xamlChanges = InspectorServices.Current.XamlChanges;
+        ISyncTracker sync = InspectorServices.Current.Sync;
 
         ITreeJsonBuilder treeJson = new TreeJsonBuilder(inspectors, elements);
-        IElementJsonBuilder elementJson = new ElementJsonBuilder(inspectors, elements, InspectorServices.Properties);
+        IElementJsonBuilder elementJson = new ElementJsonBuilder(inspectors, elements, InspectorServices.Current.Properties);
         ISelectionJsonBuilder selectionJson = new SelectionJsonBuilder(inspectors, elements, history, xamlChanges, sync);
-        IPropertyCommands commands = new PropertyCommands(inspectors, elements, InspectorServices.Properties, history);
+        var structure = InspectorServices.Current.Structure;
+        IPropertyCommands commands = new PropertyCommands(inspectors, elements, InspectorServices.Current.Properties, history, structure);
 
         return
         [
@@ -25,13 +26,14 @@ internal static class EndpointFactory
             new TreeEndpoint(mainThread, inspectors, treeJson),
             new SelectionEndpoint(mainThread, selectionJson),
             new ToggleEndpoint(mainThread, inspectors, xamlChanges),
-            new ElementEndpoint(mainThread, inspectors, elements, elementJson, commands),
-            new BroadcastEndpoint(mainThread, inspectors, InspectorServices.Properties),
+            new ElementEndpoint(mainThread, inspectors, elements, elementJson, commands, structure),
+            new StructureEndpoint(mainThread, InspectorServices.Current.Catalog, structure, inspectors, elements),
+            new BroadcastEndpoint(mainThread, inspectors, InspectorServices.Current.Properties),
             new HistoryEndpoint(mainThread, history, commands),
-            new NetworkEndpoint(InspectorServices.Network),
-            new MockRulesEndpoint(InspectorServices.NetworkRules, InspectorServices.Recorder),
-            new InterceptEndpoint(InspectorServices.Breakpoints),
-            new LogsEndpoint(InspectorServices.Logs),
+            new NetworkEndpoint(InspectorServices.Current.Network),
+            new MockRulesEndpoint(InspectorServices.Current.NetworkRules, InspectorServices.Current.Recorder),
+            new InterceptEndpoint(InspectorServices.Current.Breakpoints),
+            new LogsEndpoint(InspectorServices.Current.Logs),
             new ChangesEndpoint(xamlChanges, sync),
             new MirrorEndpoint(mainThread, inspectors),
             new MeasureEndpoint(mainThread, inspectors, elements),

@@ -10,4 +10,7 @@ internal interface IPropertyCommands
     bool RunAction(int id, string section, string label);
 
     bool Undo(long seq);
+
+    /// <summary>Redoes the most recently undone entry; false when the redo stack is empty.</summary>
+    bool Redo();
 }

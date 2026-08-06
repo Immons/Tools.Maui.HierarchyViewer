@@ -11,4 +11,6 @@ internal sealed partial class WindowInspector
     private partial Rect? GetRectInWindowPlatform(VisualElement element) => null;
     private partial Point GetLayerOriginPlatform() => Point.Zero;
     private partial double GetBottomInsetPlatform() => 0;
+
+    private partial byte[]? CapturePngPlatform() => null;
 }

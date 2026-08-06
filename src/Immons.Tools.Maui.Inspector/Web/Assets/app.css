@@ -103,7 +103,51 @@ input.bad { border-color: #e05252; }
                background: var(--row); display: flex; align-items: center; justify-content: center; padding: 8px; }
 /* display:flex above would override the browser's default [hidden] rule — restore it. */
 #mirrorpanel[hidden] { display: none; }
-#mirrorimg { max-width: 100%; max-height: 100%; object-fit: contain; cursor: crosshair; border-radius: 6px; }
+#mirrorview { flex: 1; min-width: 0; min-height: 0; align-self: stretch; position: relative;
+              display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#mirrorimg { max-width: 100%; max-height: 100%; object-fit: contain; cursor: crosshair; border-radius: 6px;
+             will-change: transform; }
+#mirrorimg.panning { cursor: grabbing; }
+#mirrorzoom { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8px; z-index: 3;
+              display: flex; gap: 8px; align-items: center; background: var(--bg2);
+              border: 1px solid var(--divider); border-radius: 8px; padding: 4px 10px; opacity: .9; }
+#mirrorzoom button { padding: 2px 9px; font-size: 12px; }
+#mirrorzoom input[type=range] { width: 140px; }
+#mirrorzoom span { font-size: 11px; color: var(--text2); width: 38px; text-align: right;
+                   font-family: ui-monospace, Menlo, monospace; }
+#mirrorimg.droparmed { outline: 2px dashed var(--accent); outline-offset: -2px; }
+#toolbox { flex: none; width: 170px; align-self: stretch; display: flex; flex-direction: column;
+           gap: 6px; padding: 4px 2px 4px 10px; border-left: 1px solid var(--divider); margin-left: 10px; }
+/* Docked: mirror and toolbox split the panel half-and-half. */
+#mirrorpanel:not(.maximized) #toolbox { flex: 1 1 0; width: auto; min-width: 0; }
+/* Maximized, portrait screenshot: toolbox is a wider side column. */
+#mirrorpanel.maximized #toolbox { width: 230px; }
+/* Maximized, landscape screenshot: the mirror needs the width — toolbox drops below it as a grid. */
+#mirrorpanel.maximized.landscape { flex-direction: column; }
+#mirrorpanel.maximized.landscape #toolbox { width: auto; flex: none; align-self: stretch; max-height: 220px;
+    border-left: none; margin-left: 0; border-top: 1px solid var(--divider); margin-top: 8px; padding: 8px 4px 4px; }
+#mirrorpanel.maximized.landscape #toolboxlist { display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px; align-content: start; }
+#mirrorpanel { position: relative; }
+#mirrorMaxBtn { position: absolute; top: 10px; left: 10px; z-index: 2; }
+/* Maximized mirror = third column: tree 25%, properties and mirror split the rest. */
+#view-inspector.mirrormax #left { width: 25%; min-width: 260px; }
+#view-inspector.mirrormax #right { flex: 1; }
+#mirrorpanel.maximized { flex: 1; min-width: 0; height: auto; align-self: stretch;
+                         border-left: 1px solid var(--divider); border-right: 1px solid var(--divider); border-top: none; }
+#mirrordrophl { position: fixed; z-index: 46; pointer-events: none; border: 2px solid var(--accent);
+                background: rgba(92,158,255,.15); border-radius: 3px; display: none; }
+#mirrordrophl .droplabel { position: absolute; top: -18px; left: 0; font-size: 11px; color: var(--accent);
+                           background: var(--bg2); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+.row.dropparent { outline: 1px dashed var(--accent); outline-offset: -1px; border-radius: 4px; }
+.toolboxhead { color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+#toolboxsearch { width: 100%; box-sizing: border-box; }
+#toolboxlist { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.toolchip { flex: none; padding: 4px 8px; border: 1px solid var(--divider); border-radius: 6px;
+            font-size: 12px; cursor: grab; background: var(--bg2); user-select: none;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolchip:hover { border-color: var(--accent); }
+.toolchip .catalogbadge { margin-left: 6px; }
 .layoutwrap { margin: 12px 0 4px; }
 .layouthead { color: var(--text2); font-size: 11px; margin-bottom: 6px; }
 .layoutbox { position: relative; background: var(--bg2); border: 1px solid var(--divider);
@@ -176,6 +220,35 @@ input.bad { border-color: #e05252; }
 @keyframes recblink { 50% { opacity: 0.35; } }
 
 .mockoff { border-left: 3px solid #d08770; padding-left: 8px; }
+
+.ctxmenu { position: fixed; z-index: 60; background: var(--bg2); border: 1px solid var(--divider);
+           border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.45); padding: 4px; min-width: 180px; }
+.ctxitem { padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.ctxitem:hover { background: rgba(120,120,255,.15); }
+.ctxitem.danger:hover { background: rgba(224,82,82,.2); }
+
+.catalogpanel { border: 1px solid var(--accent); border-radius: 8px; background: var(--bg2);
+                width: min(560px, 100%); max-height: 80vh; display: flex; flex-direction: column;
+                box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+.cataloghead { display: flex; gap: 10px; align-items: center; padding: 12px 14px 8px; }
+.catalogtitle { font-weight: 700; white-space: nowrap; }
+.catalogsearch { flex: 1; }
+.cataloglist { overflow: auto; padding: 4px 6px 10px; }
+.catalogrow { padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.catalogrow:hover { background: rgba(120,120,255,.12); }
+.catalogname { font-weight: 600; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.catalogbadge { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
+                border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
+.catalogbadge.custom { color: var(--measure); }
+.catalogdesc { color: var(--text2); font-size: 12px; }
+.catalogdesc.empty { padding: 8px 10px; }
+
+.hentry.undone { opacity: .5; }
+.hentry.undone .vals { text-decoration: line-through; }
+.row.dragging { opacity: .45; }
+.row.dropabove { box-shadow: 0 -2px 0 0 var(--accent); }
+.row.dropbelow { box-shadow: 0 2px 0 0 var(--accent); }
+.row.dropinto { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
 
 .mirrortext { display: inline-flex; flex-direction: column; line-height: 1.25; vertical-align: middle; }
 .mirrorurl { color: var(--text2); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

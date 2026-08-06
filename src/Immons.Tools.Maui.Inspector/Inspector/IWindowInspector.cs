@@ -28,6 +28,12 @@ internal interface IWindowInspector
 
     Rect? BoundsOf(VisualElement element);
 
+    /// <summary>
+    /// Platform-composited screenshot covering modal windows, or null when the plain
+    /// <see cref="Screenshot"/> capture is already correct. Main thread only.
+    /// </summary>
+    byte[]? CapturePng();
+
     string BuildDump();
 
     bool RemoteSelectAt(Point windowPoint);

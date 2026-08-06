@@ -18,6 +18,22 @@ internal sealed class RingLog<T>(int limit)
         }
     }
 
+    /// <summary>Replaces the first entry matching the predicate with its transformed copy.</summary>
+    public void Replace(Func<T, bool> match, Func<T, T> transform)
+    {
+        lock (_gate)
+        {
+            for (var i = 0; i < _entries.Count; i++)
+            {
+                if (match(_entries[i]))
+                {
+                    _entries[i] = transform(_entries[i]);
+                    return;
+                }
+            }
+        }
+    }
+
     /// <summary>Adds the entry produced from the next sequence number, dropping the oldest at the limit.</summary>
     public void Add(Func<long, T> create)
     {

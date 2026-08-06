@@ -49,7 +49,22 @@
         <button onclick="setAllCollapsed(true)" title="Collapse all">⊟</button>
       </div>
       <div id="tree"></div>
-      <div id="mirrorpanel" hidden><img id="mirrorimg" alt="device screen"></div>
+      <div id="mirrorpanel" hidden>
+        <button id="mirrorMaxBtn" title="Expand the mirror over the right panel">⛶</button>
+        <div id="mirrorview">
+          <img id="mirrorimg" alt="device screen" draggable="false">
+          <div id="mirrorzoom">
+            <button id="mirrorFitBtn" title="Reset zoom and position (aspect fit)">Fit</button>
+            <input id="mirrorZoomSlider" type="range" min="25" max="300" value="100" title="Zoom">
+            <span id="mirrorZoomVal">100%</span>
+          </div>
+        </div>
+        <div id="toolbox">
+          <div class="toolboxhead">Toolbox</div>
+          <input id="toolboxsearch" type="text" placeholder="Filter…">
+          <div id="toolboxlist"></div>
+        </div>
+      </div>
     </div>
     <div id="right">
       <div id="propbar">
@@ -98,6 +113,7 @@
 <script src="/js/props.js"></script>
 <script src="/js/tabs.js"></script>
 <script src="/js/mock.js"></script>
+<script src="/js/structure.js"></script>
 <script src="/js/mirrors.js"></script>
 <script src="/js/diff.js"></script>
 <script src="/js/keyboard.js"></script>

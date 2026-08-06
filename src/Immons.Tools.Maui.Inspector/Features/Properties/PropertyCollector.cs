@@ -18,6 +18,7 @@ internal sealed class PropertyCollector(IReadOnlyList<IPropertySectionBuilder> b
             new InteractionSectionBuilder(),
             new AccessibilitySectionBuilder(),
             new ControlSectionBuilder(),
+            new CustomPropertiesSectionBuilder(),
             new BindingContextSectionBuilder(),
             new AllPropertiesSectionBuilder(),
         ])

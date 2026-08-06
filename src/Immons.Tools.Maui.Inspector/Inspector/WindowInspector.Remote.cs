@@ -17,6 +17,8 @@ internal sealed partial class WindowInspector : IWindowInspector
 
     public Rect? BoundsOf(VisualElement element) => GetRectInWindow(element);
 
+    public byte[]? CapturePng() => CapturePngPlatform();
+
     public Size WindowSize => new(_window.Width, _window.Height);
 
     public string BuildDump() =>
@@ -168,7 +170,7 @@ internal sealed partial class WindowInspector : IWindowInspector
         OnPropertyEdited();
         if (_panelLayer != null && _selected is { } element)
         {
-            var sections = InspectorServices.Properties.Collect(element, GetRectInWindow(element));
+            var sections = InspectorServices.Current.Properties.Collect(element, GetRectInWindow(element));
             _panelLayer.ShowSelection(element, sections, ParentChain(element), scrollTree: false, preservePropsScroll: true);
         }
     }

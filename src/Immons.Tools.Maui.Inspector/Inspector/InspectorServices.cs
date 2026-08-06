@@ -1,33 +1,71 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Immons.Tools.Maui.Inspector.Inspector;
 
 /// <summary>
-/// Composition root of the inspector. The library is activated from a window-handler mapping
-/// (outside the app's DI container), so the object graph is wired here once and consumed
-/// through the interfaces only.
+/// Aggregate of the inspector's services, built by the app's MAUI container (see
+/// <see cref="InspectorServiceRegistration"/>) and published through <see cref="Current"/>
+/// when the app is built. The standalone fallback covers apps that reference inspector
+/// types without calling UseMauiInspector — same registrations, private container.
 /// </summary>
-internal static class InspectorServices
+internal sealed class InspectorServices(
+    IElementRegistry elements,
+    IAddedElements added,
+    IElementCatalog catalog,
+    IXamlChangeLog xamlChanges,
+    StructureReplay replay,
+    IEditHistory history,
+    IStructureCommands structure,
+    INetworkLog network,
+    ILogSink logs,
+    IMockRules networkRules,
+    IBreakpointGate breakpoints,
+    IScenarioRecorder recorder,
+    INetworkInterceptor interceptor,
+    ISyncTracker sync,
+    IAppliedExpressions expressions,
+    IPropertyCollector properties)
 {
-    public static IElementRegistry Elements { get; } = new ElementRegistry();
+    static InspectorServices? _current;
 
-    public static IXamlChangeLog XamlChanges { get; } = new XamlChangeLog();
+    public static InspectorServices Current => _current ??= CreateStandalone();
 
-    public static IEditHistory History { get; } = new EditHistory(Elements);
+    /// <summary>First registration wins — the app container's graph, when there is one.</summary>
+    internal static void Use(InspectorServices services) => _current ??= services;
 
-    public static INetworkLog Network { get; } = new NetworkLog();
+    static InspectorServices CreateStandalone() =>
+        new ServiceCollection().AddMauiInspectorServices().BuildServiceProvider()
+            .GetRequiredService<InspectorServices>();
 
-    public static ILogSink Logs { get; } = new LogSink();
+    public IElementRegistry Elements { get; } = elements;
 
-    public static IMockRules NetworkRules { get; } = new MockRules();
+    public IAddedElements Added { get; } = added;
 
-    public static IBreakpointGate Breakpoints { get; } = new BreakpointGate();
+    public IElementCatalog Catalog { get; } = catalog;
 
-    public static IScenarioRecorder Recorder { get; } = new ScenarioRecorder(NetworkRules);
+    public IXamlChangeLog XamlChanges { get; } = xamlChanges;
 
-    public static INetworkInterceptor Interceptor { get; } = new NetworkInterceptor(Network, NetworkRules, Breakpoints, Recorder);
+    public StructureReplay Replay { get; } = replay;
 
-    public static ISyncTracker Sync { get; } = new SyncTracker();
+    public IEditHistory History { get; } = history;
 
-    public static IAppliedExpressions Expressions { get; } = new PersistentAppliedExpressions();
+    public IStructureCommands Structure { get; } = structure;
 
-    public static IPropertyCollector Properties { get; } = new PropertyCollector(XamlChanges);
+    public INetworkLog Network { get; } = network;
+
+    public ILogSink Logs { get; } = logs;
+
+    public IMockRules NetworkRules { get; } = networkRules;
+
+    public IBreakpointGate Breakpoints { get; } = breakpoints;
+
+    public IScenarioRecorder Recorder { get; } = recorder;
+
+    public INetworkInterceptor Interceptor { get; } = interceptor;
+
+    public ISyncTracker Sync { get; } = sync;
+
+    public IAppliedExpressions Expressions { get; } = expressions;
+
+    public IPropertyCollector Properties { get; } = properties;
 }

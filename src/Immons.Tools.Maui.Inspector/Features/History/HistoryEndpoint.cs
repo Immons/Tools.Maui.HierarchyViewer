@@ -16,6 +16,13 @@ internal sealed class HistoryEndpoint(
             return true;
         }
 
+        if (method == HttpVerbs.Post && path == ApiRoutes.History.Redo)
+        {
+            var ok = await mainThread.RunAsync(commands.Redo).ConfigureAwait(false);
+            await HttpResponse.WriteOk(context, ok).ConfigureAwait(false);
+            return true;
+        }
+
         if (method == HttpVerbs.Post && path == ApiRoutes.History.Undo)
         {
             var seq = (await RequestBody.ReadJson(context).ConfigureAwait(false))?["seq"]?.GetValue<long>() ?? 0;

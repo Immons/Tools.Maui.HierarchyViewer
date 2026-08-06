@@ -88,7 +88,7 @@ internal sealed class PropertyRowViewFactory(
     {
         if (!editor.Clear())
             return;
-        InspectorServices.History.Record(elementProvider(), sectionTitle, row.Name, row.Value, "(cleared)");
+        InspectorServices.Current.History.Record(elementProvider(), sectionTitle, row.Name, row.Value, "(cleared)");
         structureChanged();
     }
 
@@ -153,7 +153,7 @@ internal sealed class PropertyRowViewFactory(
             var text = Compose(mode.SelectedIndex, entries);
             if (text == null || !editor.Apply(text))
                 return;
-            InspectorServices.History.Record(elementProvider(), sectionTitle, row.Name, row.Value, text);
+            InspectorServices.Current.History.Record(elementProvider(), sectionTitle, row.Name, row.Value, text);
             structureChanged();
         };
         apply.GestureRecognizers.Add(applyTap);
@@ -194,7 +194,7 @@ internal sealed class PropertyRowViewFactory(
         {
             try { action(); }
             catch { /* structural edit failed — panel refresh below shows actual state */ }
-            InspectorServices.History.Record(elementProvider(), sectionTitle, row.Value, "", "(action)", canUndo: false);
+            InspectorServices.Current.History.Record(elementProvider(), sectionTitle, row.Value, "", "(action)", canUndo: false);
             structureChanged();
         };
         link.GestureRecognizers.Add(tap);
@@ -232,7 +232,7 @@ internal sealed class PropertyRowViewFactory(
         {
             if (editor.Apply(e.Value.ToString()))
             {
-                InspectorServices.History.Record(elementProvider(), sectionTitle, row.Name, (!e.Value).ToString(), e.Value.ToString());
+                InspectorServices.Current.History.Record(elementProvider(), sectionTitle, row.Name, (!e.Value).ToString(), e.Value.ToString());
                 edited();
             }
         };
@@ -259,7 +259,7 @@ internal sealed class PropertyRowViewFactory(
         {
             if (picker.SelectedItem is string choice && choice != lastApplied && editor.Apply(choice))
             {
-                InspectorServices.History.Record(elementProvider(), sectionTitle, row.Name, lastApplied, choice);
+                InspectorServices.Current.History.Record(elementProvider(), sectionTitle, row.Name, lastApplied, choice);
                 lastApplied = choice;
                 edited();
             }
@@ -291,7 +291,7 @@ internal sealed class PropertyRowViewFactory(
                 return;
             if (editor.Apply(text))
             {
-                InspectorServices.History.Record(elementProvider(), sectionTitle, row.Name, lastApplied, text);
+                InspectorServices.Current.History.Record(elementProvider(), sectionTitle, row.Name, lastApplied, text);
                 lastApplied = text;
                 edited();
             }

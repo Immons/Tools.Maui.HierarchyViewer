@@ -1,5 +1,6 @@
 using Immons.Tools.Maui.Inspector.Features.Editing.Storage;
 using Immons.Tools.Maui.Inspector.Features.NetworkInspection.Storage;
+using Immons.Tools.Maui.Inspector.Features.Structure.Storage;
 using Immons.Tools.Maui.Inspector.Persistency.Entities;
 using Immons.Tools.Maui.Inspector.Shared.Storage;
 using SQLite;
@@ -20,10 +21,12 @@ internal sealed class SqliteInspectorStorage : IInspectorStorage, IDisposable
         _db.CreateTable<MockRuleRow>();
         _db.CreateTable<SettingRow>();
         _db.CreateTable<ExpressionRow>();
+        _db.CreateTable<StructureOpRow>();
 
         MockRules = new SqliteMockRuleStore(_db);
         Breakpoints = new SqliteBreakpointStore(_db);
         Expressions = new SqliteExpressionStore(_db);
+        Structure = new SqliteStructureStore(_db);
     }
 
     public IMockRuleStore MockRules { get; }
@@ -31,6 +34,8 @@ internal sealed class SqliteInspectorStorage : IInspectorStorage, IDisposable
     public IBreakpointStore Breakpoints { get; }
 
     public IExpressionStore Expressions { get; }
+
+    public IStructureStore Structure { get; }
 
     public string DatabasePath => _db.DatabasePath;
 

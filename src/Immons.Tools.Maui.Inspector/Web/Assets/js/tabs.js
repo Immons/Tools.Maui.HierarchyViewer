@@ -15,7 +15,7 @@ async function loadHistory() {
 
   for (const e of data.entries) {
     const div = document.createElement('div');
-    div.className = 'hentry';
+    div.className = 'hentry' + (e.undone ? ' undone' : '');
 
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -28,7 +28,8 @@ async function loadHistory() {
         if ((await res.json()).ok) {
           await loadHistory();
           if (selectedId != null) await loadProps(selectedId, true);
-          if (TREE_LABEL_PROPS.includes(e.name))
+          // Structural undo changes the tree itself; label-affecting property undo renames rows.
+          if (e.section === 'Structure' || TREE_LABEL_PROPS.includes(e.name))
             await refreshAll(true);
         }
       };

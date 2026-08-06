@@ -9,5 +9,14 @@ internal interface IEditHistory
 
     EditHistory.Entry? Find(long seq);
 
+    /// <summary>Flags an entry as undone: it leaves the Ctrl+Z chain, joins the redo stack.</summary>
+    void MarkUndone(long seq);
+
+    /// <summary>Puts a redone entry back into the Ctrl+Z chain.</summary>
+    void MarkRedone(long seq);
+
+    /// <summary>The most recently undone entry still eligible for redo; null when none.</summary>
+    long? PopRedo();
+
     string ToJson();
 }

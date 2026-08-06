@@ -88,7 +88,7 @@ if (fromNow)
 {
     try
     {
-        var initial = JsonNode.Parse(await http.GetStringAsync($"{app}/api/changes?since=0"));
+        var initial = JsonNode.Parse(await http.GetStringAsync($"{app}/api/changes?since=0&caps=el"));
         since = initial?["seq"]?.GetValue<long>() ?? 0;
     }
     catch
@@ -101,7 +101,7 @@ while (true)
 {
     try
     {
-        var json = JsonNode.Parse(await http.GetStringAsync($"{app}/api/changes?since={since}"));
+        var json = JsonNode.Parse(await http.GetStringAsync($"{app}/api/changes?since={since}&caps=el"));
         if (!connected)
         {
             connected = true;
@@ -120,7 +120,8 @@ while (true)
                 node["element"]?.GetValue<string>() ?? "",
                 node["attribute"]?.GetValue<string>() ?? "",
                 node["value"]?.GetValue<string>() ?? "",
-                node["remove"]?.GetValue<bool>() ?? false);
+                node["remove"]?.GetValue<bool>() ?? false,
+                node["op"]?.GetValue<string>() ?? "attr");
 
             patcher.Apply(change);
         }

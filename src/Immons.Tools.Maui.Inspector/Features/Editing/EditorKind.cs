@@ -11,4 +11,5 @@ internal enum EditorKind
     Point,
     Enum,
     LayoutOptions,
+    Image,
 }

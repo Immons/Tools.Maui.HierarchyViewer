@@ -76,6 +76,9 @@ internal static class ValueFormatter
     /// <summary>Formats any property value for display (colors, thicknesses, brushes, shapes…).</summary>
     public static string FormatValue(object? value) => value switch
     {
+        FileImageSource file => file.File,
+        UriImageSource uriSource => uriSource.Uri?.ToString() ?? "(uri)",
+        FontImageSource font => $"(font glyph {font.Glyph})",
         null => "",
         string s => s,
         double d when double.IsNaN(d) => "",

@@ -18,6 +18,7 @@ in your desktop browser, with an on-device overlay as the fallback when you have
 Everything runs **inside your app**: no IDE integration, no proxy, no certificates.
 
 - **Inspect & edit** the live visual tree — box model, properties, styles, spans, grids, `{Binding}` / `{StaticResource}` / `{OnPlatform}` — with every change written back to your XAML if you want it.
+- **Edit the structure, WYSIWYG-style** — drag controls from a toolbox onto the live mirror, add / remove / reorder / reparent / wrap / unwrap / copy-paste elements with undo & redo, and it all lands in your `.xaml` files as real markup ([details](#structure-editing-wysiwyg)).
 - **Intercept HTTP** — record traffic with bodies, mock it with rules and scenarios, record a whole flow and replay it offline, or pause a call at a breakpoint and edit it.
 - **Drive several devices at once** — one panel updates the same app on every connected simulator, emulator or phone.
 
@@ -84,6 +85,93 @@ No laptop? The same inspector runs as an overlay inside the app — long-press a
 The on-device panel is feature-matched with the web one: live editors with `⋔` per-platform /
 per-idiom composer, `✕` clear, `⛓︎`/`⋔︎` badges for bound and per-device values, and a `⋯` row with
 **Guides**, **XAML** write-back, **Perf** and **Slow** toggles.
+
+## Structure editing (WYSIWYG)
+
+Properties are half the story — the inspector also edits the **structure** of a running page:
+add controls, delete them, reorder, reparent, wrap and unwrap, copy & paste — live on the
+device, recorded in the edit history with full undo/redo, and (with the
+[XAML Updater](#wysiwyg-write-edits-back-to-your-xaml-xaml-updater) running) written back into
+your `.xaml` sources as real, compilable markup.
+
+![Structure editing overview](docs/wysiwyg-overview.png)
+
+### The toolbox
+
+Turn on **Mirror** and a toolbox appears next to the live screenshot: every MAUI built-in plus
+**your app's own controls**, discovered by reflection (public `View` subclasses with a
+parameterless constructor — marked `custom`). Drag a control onto the mirror: while you drag,
+the container that would receive the drop is outlined with its type name, and the drop position
+follows the cursor (above/below the neighbouring children in stack layouts).
+
+![Drop target highlight](docs/wysiwyg-drop-target.png)
+
+The `⛶` button expands the mirror into a full column — tree, mirror and properties side by
+side — and `🗗` docks it back. The **Fit** button, zoom slider (25–300%, or pinch/Ctrl+scroll)
+and drag-to-pan keep big tablet screenshots manageable; clicking, right-clicking and dropping
+all stay accurate at any zoom, pan and device rotation.
+
+### The context menu
+
+Right-click a tree row — or right-click **directly on the mirror** (the element under the
+cursor is hit-tested and selected) — for the full set of operations:
+
+![Context menu](docs/wysiwyg-context-menu.png)
+
+- **Add element…** opens a searchable catalog with a one-line description of every control.
+- **Copy** / **Copy with content (force)** / **Paste here** — see below.
+- **Wrap in…** puts the element inside a new container (Grid, Border, ScrollView, …) chosen
+  from the same catalog, filtered to containers. The wrapper lands in the XAML around the
+  element's markup, indentation included; editing the wrapper's properties rewrites only its
+  opening tag.
+- **Unwrap** pulls the element one level up: if it was its parent's only child the parent
+  container disappears (your `<Grid><VerticalStackLayout/></Grid>` becomes just the stack);
+  with siblings present, the element moves out to the grandparent instead.
+- **Move up / Move down** reorder within the parent — dragging rows in the tree does the same,
+  including dropping into a *different* parent (edges = before/after a sibling, middle = into
+  the container).
+- **Remove element** — also on the Delete/Backspace key.
+
+![Add element catalog](docs/wysiwyg-catalog.png)
+
+### Copy & paste
+
+`Ctrl/Cmd+C` copies the selected element — its non-default property values and its whole
+subtree; `Ctrl/Cmd+V` pastes into the selection (or its nearest container ancestor). The pasted
+markup is written to the XAML as a complete nested block, custom controls included: their
+`xmlns:` declarations are added to the root element automatically, reusing prefixes the file
+already has. Custom controls are treated as *leaves* by default — their internal visual tree
+belongs to them and is not duplicated. For wrapper-style controls that carry your content, use
+**Copy with content (force)** (`Ctrl/Cmd+Shift+C`).
+
+### History with undo & redo
+
+Every edit — properties and structure alike — lands in the **Edit history**. `Ctrl/Cmd+Z` walks
+the chain backwards like a classic editor: undone entries are struck through and leave the
+chain, so repeated undo keeps going deeper instead of re-doing itself. `Ctrl/Cmd+Shift+Z` (or
+`Ctrl+Y`) re-applies the most recently undone entry; making a new edit clears the redo branch.
+
+![Edit history](docs/wysiwyg-history.png)
+
+### Custom controls are first-class
+
+Selecting one of your own controls adds a **“{Type} properties”** section listing the bindable
+properties it declares (one section per type in the inheritance chain), with the same editors,
+history, `{Binding}`/`{StaticResource}`/`{OnPlatform}` support and XAML write-back as the
+built-in sections. `ImageSource` properties accept a bundled file name or an absolute URL.
+
+### Durability
+
+- With the SQLite storage package, structural edits **survive app restarts**: pending adds
+  (with their edited attributes), removes, moves and wraps are re-applied when the page loads,
+  matched by XAML source identity — until the XAML Updater has written them into the sources
+  and they become plain markup.
+- The XAML Updater applies structural operations with the same in-place, no-reformat policy as
+  attribute edits: inserts are anchored to their parent and neighbours, later edits *upsert*
+  the same snippet instead of duplicating it, moves relocate the element's exact span
+  (re-indented for its new depth), and undo restores the removed text verbatim. Structural
+  operations are only served to an updater that declares support for them, so an outdated tool
+  can never misapply them.
 
 ## Getting started
 

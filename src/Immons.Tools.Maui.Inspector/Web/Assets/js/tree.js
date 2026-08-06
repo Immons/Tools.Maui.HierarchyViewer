@@ -27,6 +27,7 @@ function renderNode(n, depth) {
   row.className = 'row';
   row.dataset.id = n.id;
   row.dataset.search = n.s || n.label.toLowerCase();
+  row.draggable = true; // same-parent reorder, handled in structure.js
 
   const caret = document.createElement('span');
   caret.className = 'caret';

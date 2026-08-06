@@ -40,6 +40,18 @@ internal sealed partial class WindowInspector
         if (_highlightLayer == null)
             return;
 
+        // A removed element detaches from the window — drop the selection with it,
+        // otherwise its last box would stay painted over the live app.
+        if (_selected is { Window: null })
+        {
+            _selected = null;
+            _compare = null;
+        }
+        else if (_compare is { Window: null })
+        {
+            _compare = null;
+        }
+
         var layerOrigin = LayerOrigin;
         var guides = _debugPaint ? CollectGuides(layerOrigin) : null;
 

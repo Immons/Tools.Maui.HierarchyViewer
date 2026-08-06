@@ -25,6 +25,9 @@ public static class MauiInspector
         if (Options.ShakeToOpen)
             ShakeActivation.EnsureStarted();
 
+        // Replays persisted structural edits (SQLite backend) as pages appear.
+        InspectorServices.Current.Replay.Hook();
+
         if (!Inspectors.TryGetValue(window, out var inspector))
         {
             inspector = new WindowInspector(window, Options);
@@ -60,9 +63,9 @@ public static class MauiInspector
     /// how many rules were added. Useful from a test hook when bundling the file is not an option.
     /// </summary>
     public static int ImportRules(string json) =>
-        Features.NetworkInspection.RuleSeed.Apply(InspectorServices.NetworkRules, json);
+        Features.NetworkInspection.RuleSeed.Apply(InspectorServices.Current.NetworkRules, json);
 
-    public static string ActiveScenario => InspectorServices.NetworkRules.ActiveScenario;
+    public static string ActiveScenario => InspectorServices.Current.NetworkRules.ActiveScenario;
 
     /// <summary>True when the named scenario (or any scenario, with no argument) is active.</summary>
     public static bool IsScenarioActive(string? name = null) =>

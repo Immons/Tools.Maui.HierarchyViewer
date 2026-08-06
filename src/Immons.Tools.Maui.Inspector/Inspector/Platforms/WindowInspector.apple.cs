@@ -107,4 +107,7 @@ internal sealed partial class WindowInspector
     }
 
     private partial double GetBottomInsetPlatform() => _uiWindow?.SafeAreaInsets.Bottom ?? 0;
+
+    // Modals share the UIWindow, so Essentials' Screenshot already captures them.
+    private partial byte[]? CapturePngPlatform() => null;
 }

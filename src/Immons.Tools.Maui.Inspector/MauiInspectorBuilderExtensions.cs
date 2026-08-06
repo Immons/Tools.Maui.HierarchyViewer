@@ -14,6 +14,9 @@ public static class MauiInspectorBuilderExtensions
         // Must run before any XAML page is inflated so MAUI records element source locations.
         Features.XamlSync.XamlSource.EnableDiagnostics();
 
+        // The inspector's object graph lives in the app's own container.
+        Inspector.InspectorServiceRegistration.AddMauiInspectorServices(builder.Services);
+
         configure?.Invoke(MauiInspector.Options);
 
         if (!_mapped)

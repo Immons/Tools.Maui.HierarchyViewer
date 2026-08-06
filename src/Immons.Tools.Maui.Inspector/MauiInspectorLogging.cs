@@ -34,7 +34,7 @@ sealed class MauiInspectorLoggerProvider(LogLevel minimumLevel) : ILoggerProvide
             var message = formatter(state, exception);
             if (exception != null)
                 message += $" — {exception.GetType().Name}: {exception.Message}";
-            Inspector.InspectorServices.Logs.Write(logLevel, category, message);
+            Inspector.InspectorServices.Current.Logs.Write(logLevel, category, message);
         }
     }
 }

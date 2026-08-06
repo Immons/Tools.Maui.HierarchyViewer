@@ -47,6 +47,9 @@ internal sealed class TreePane : Grid
 
     public event Action<VisualElement>? Picked;
 
+    /// <summary>Double-tap on a row: structural actions (add/wrap/move/remove).</summary>
+    public event Action<VisualElement>? StructureRequested;
+
     public TreePane()
     {
         this.NoSafeArea();
@@ -197,6 +200,14 @@ internal sealed class TreePane : Grid
             }
         };
         row.GestureRecognizers.Add(tap);
+
+        var doubleTap = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
+        doubleTap.Tapped += (sender, _) =>
+        {
+            if (sender is Grid g && g.BindingContext is TreeNodeVM vm)
+                StructureRequested?.Invoke(vm.Node.Element);
+        };
+        row.GestureRecognizers.Add(doubleTap);
 
         return row;
     }

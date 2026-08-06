@@ -30,7 +30,7 @@ internal static class EditorFactory
                     return false;
                 bindable.SetBinding(bp, bindingExpression);
                 if (top)
-                    InspectorServices.Expressions.Record(element, propertyName, null);
+                    InspectorServices.Current.Expressions.Record(element, propertyName, null);
                 return true;
             }
 
@@ -40,7 +40,7 @@ internal static class EditorFactory
             {
                 var ok = deviceValue == null || Apply(deviceValue, top: false);
                 if (ok)
-                    InspectorServices.Expressions.Record(element, propertyName, text.Trim());
+                    InspectorServices.Current.Expressions.Record(element, propertyName, text.Trim());
                 return ok;
             }
 
@@ -64,7 +64,7 @@ internal static class EditorFactory
                     }
                 }
                 if (top)
-                    InspectorServices.Expressions.Record(element, propertyName, text.Trim());
+                    InspectorServices.Current.Expressions.Record(element, propertyName, text.Trim());
                 return true;
             }
 
@@ -87,7 +87,7 @@ internal static class EditorFactory
             {
                 pi.SetValue(element, value);
                 if (top)
-                    InspectorServices.Expressions.Record(element, propertyName, null);
+                    InspectorServices.Current.Expressions.Record(element, propertyName, null);
                 return true;
             }
             catch
@@ -134,6 +134,8 @@ internal static class EditorFactory
             return (EditorKind.LayoutOptions, new[] { "Start", "Center", "End", "Fill" });
         if (type.IsEnum)
             return (EditorKind.Enum, Enum.GetNames(type));
+        if (typeof(ImageSource).IsAssignableFrom(type))
+            return (EditorKind.Image, null);
         return null;
     }
 
@@ -149,7 +151,7 @@ internal static class EditorFactory
             try
             {
                 bindable.ClearValue(property);
-                InspectorServices.Expressions.Record(element, propertyName, null);
+                InspectorServices.Current.Expressions.Record(element, propertyName, null);
                 return true;
             }
             catch

@@ -10,6 +10,19 @@ internal static class VisualTreeWalker
     /// </summary>
     public static IEnumerable<VisualElement> GetVisualChildren(IVisualTreeElement element)
     {
+        // Layouts answer from their logical children: the visual tree lags one layout pass
+        // behind structural edits (a freshly inserted wrapper has no handler yet), while
+        // Children reflects the mutation immediately.
+        if (element is Layout controlsLayout)
+        {
+            foreach (var view in controlsLayout.Children)
+            {
+                if (view is VisualElement ve)
+                    yield return ve;
+            }
+            yield break;
+        }
+
         var any = false;
         foreach (var child in element.GetVisualChildren())
         {

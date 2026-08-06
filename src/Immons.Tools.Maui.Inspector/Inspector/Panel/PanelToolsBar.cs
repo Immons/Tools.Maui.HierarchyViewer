@@ -31,7 +31,7 @@ internal sealed class PanelToolsBar : Grid
         _xaml = Theme.MakeButton("✎︎ XAML");
         _xaml.Clicked += (_, _) =>
         {
-            InspectorServices.XamlChanges.Enabled = !InspectorServices.XamlChanges.Enabled;
+            InspectorServices.Current.XamlChanges.Enabled = !InspectorServices.Current.XamlChanges.Enabled;
             UpdateVisuals();
         };
 
@@ -87,7 +87,7 @@ internal sealed class PanelToolsBar : Grid
     void UpdateVisuals()
     {
         Paint(_guides, _guidesOn);
-        Paint(_xaml, InspectorServices.XamlChanges.Enabled);
+        Paint(_xaml, InspectorServices.Current.XamlChanges.Enabled);
         Paint(_perf, FrameStats.Current != null);
         Paint(_slow, SlowAnimations.Enabled);
         _perfOut.Text = FrameStats.Current is { } f

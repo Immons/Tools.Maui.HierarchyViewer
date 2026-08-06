@@ -42,9 +42,35 @@ internal sealed partial class WindowInspector
 
     double Density => _activity?.Resources?.DisplayMetrics?.Density ?? 1;
 
+    /// <summary>
+    /// The view group the overlay layers live in. MAUI hosts each modal page in its own
+    /// platform window (a Dialog) stacked above the activity, so layers pinned to the
+    /// activity's decor would render — and hit-test — beneath an open modal. The host is
+    /// therefore the decor of the topmost modal's window, falling back to the activity.
+    /// </summary>
+    ViewGroup? HostDecor()
+    {
+        var decor = _activity?.Window?.DecorView as ViewGroup;
+
+        IReadOnlyList<Page>? modals = null;
+        try { modals = _window.Page?.Navigation?.ModalStack; }
+        catch { /* navigation may be unavailable mid-teardown */ }
+
+        for (var i = (modals?.Count ?? 0) - 1; i >= 0; i--)
+        {
+            if (modals![i].Handler?.PlatformView is AView view
+                && view.IsAttachedToWindow
+                && view.RootView is ViewGroup modalRoot
+                && !ReferenceEquals(modalRoot, decor))
+                return modalRoot;
+        }
+
+        return decor;
+    }
+
     private partial void AddLayersPlatform()
     {
-        if (_activity?.Window?.DecorView is not ViewGroup decor || _mauiContext == null)
+        if (HostDecor() is not { } decor || _mauiContext == null)
             return;
 
         // Keep long-press detection alive in remote highlight-only mode (no panel).
@@ -91,13 +117,16 @@ internal sealed partial class WindowInspector
         _panelPlatform.TranslationY = (float)yDp * d;
     }
 
+    // Screen (not window) coordinates throughout: elements and overlay layers can live in
+    // different platform windows (activity vs modal dialog), and screen space is the only
+    // frame they share.
     private partial Rect? GetRectInWindowPlatform(VisualElement element)
     {
         if (element.Handler?.PlatformView is not AView pv || !pv.IsAttachedToWindow)
             return null;
 
         var loc = new int[2];
-        pv.GetLocationInWindow(loc);
+        pv.GetLocationOnScreen(loc);
         var d = Density;
         return new Rect(loc[0] / d, loc[1] / d, pv.Width / d, pv.Height / d);
     }
@@ -108,9 +137,55 @@ internal sealed partial class WindowInspector
             return Point.Zero;
 
         var loc = new int[2];
-        _highlightPlatform.GetLocationInWindow(loc);
+        _highlightPlatform.GetLocationOnScreen(loc);
         var d = Density;
         return new Point(loc[0] / d, loc[1] / d);
+    }
+
+    /// <summary>
+    /// Composites the activity window and every modal window into one PNG. Essentials'
+    /// Screenshot captures only the activity window, so with a modal open the mirror
+    /// would show the page underneath it. Null when no modal is up — the regular
+    /// screenshot path is both correct and cheaper then.
+    /// </summary>
+    private partial byte[]? CapturePngPlatform()
+    {
+        if (_activity?.Window?.DecorView is not ViewGroup decor || decor.Width <= 0 || decor.Height <= 0)
+            return null;
+
+        IReadOnlyList<Page>? modals = null;
+        try { modals = _window.Page?.Navigation?.ModalStack; }
+        catch { /* navigation may be unavailable mid-teardown */ }
+        if (modals == null || modals.Count == 0)
+            return null;
+
+        using var bitmap = Android.Graphics.Bitmap.CreateBitmap(
+            decor.Width, decor.Height, Android.Graphics.Bitmap.Config.Argb8888!);
+        var canvas = new Android.Graphics.Canvas(bitmap);
+        var origin = new int[2];
+        decor.GetLocationOnScreen(origin);
+        decor.Draw(canvas);
+
+        var drawn = new HashSet<AView> { decor };
+        foreach (var modal in modals)
+        {
+            if (modal.Handler?.PlatformView is not AView view || !view.IsAttachedToWindow)
+                continue;
+            var root = view.RootView;
+            if (root == null || !drawn.Add(root))
+                continue;
+
+            var loc = new int[2];
+            root.GetLocationOnScreen(loc);
+            canvas.Save();
+            canvas.Translate(loc[0] - origin[0], loc[1] - origin[1]);
+            root.Draw(canvas);
+            canvas.Restore();
+        }
+
+        using var stream = new MemoryStream();
+        bitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Png!, 100, stream);
+        return stream.ToArray();
     }
 
     private partial double GetBottomInsetPlatform()

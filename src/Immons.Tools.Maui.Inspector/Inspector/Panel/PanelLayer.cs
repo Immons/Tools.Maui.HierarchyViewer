@@ -13,11 +13,15 @@ internal sealed class PanelLayer : Border
     readonly BreadcrumbBar _breadcrumb;
     readonly PanelDragController _drag;
     readonly TreePane _treePane;
+    readonly Features.Structure.Ui.StructureMenuPane _structureMenu = new();
     readonly PropertiesPane _propsPane;
     readonly Grid _root;
 
     public event Action? CloseRequested;
     public event Action? RefreshRequested;
+
+    /// <summary>A structural edit was applied from the on-device menu; arg = element to select.</summary>
+    public event Action<VisualElement?>? StructureMenuEdited;
     public event Action? PropertyEdited;
     public event Action? StructureEdited;
     public event Action? DumpRequested;
@@ -73,6 +77,7 @@ internal sealed class PanelLayer : Border
 
         _treePane = new TreePane { IsVisible = false };
         _treePane.Picked += el => ElementPicked?.Invoke(el, false);
+        _treePane.StructureRequested += el => _structureMenu.Show(el);
         _propsPane = new PropertiesPane();
         _propsPane.Edited += () => PropertyEdited?.Invoke();
         _propsPane.StructureChanged += () => StructureEdited?.Invoke();
@@ -100,7 +105,11 @@ internal sealed class PanelLayer : Border
         _root.Add(_breadcrumb, 0, 3);
         _root.Add(contentHost, 0, 4);
 
-        Content = _root;
+        _structureMenu.Edited += select => StructureMenuEdited?.Invoke(select);
+        var host = new Grid().NoSafeArea();
+        host.Add(_root);
+        host.Add(_structureMenu);
+        Content = host;
 
         // Drag surfaces: handle, header spacer and the breadcrumb bar (labels still get taps).
         // Full-header pan would fight button presses on some platforms.

@@ -5,7 +5,8 @@ internal sealed class PropertyCommands(
     IActiveInspectorProvider inspectors,
     IElementRegistry elements,
     IPropertyCollector properties,
-    IEditHistory history) : IPropertyCommands
+    IEditHistory history,
+    IStructureCommands structure) : IPropertyCommands
 {
     public bool Apply(int id, string section, string name, string value)
     {
@@ -48,8 +49,11 @@ internal sealed class PropertyCommands(
 
     public bool Undo(long seq)
     {
-        if (history.Find(seq) is not { CanUndo: true } entry)
+        if (history.Find(seq) is not { CanUndo: true, Undone: false } entry)
             return false;
+
+        if (entry.Section == "Structure")
+            return structure.Undo(seq);
 
         var row = FindRows(entry.ElementId, entry.Section)?
             .FirstOrDefault(r => r.Name == entry.Name && r.Editor != null);
@@ -62,7 +66,39 @@ internal sealed class PropertyCommands(
 
         if (ok)
         {
-            history.Record(elements.Find(entry.ElementId), entry.Section, entry.Name, entry.NewValue, entry.OldValue);
+            history.MarkUndone(seq);
+            history.Record(elements.Find(entry.ElementId), entry.Section, entry.Name, entry.NewValue, entry.OldValue, canUndo: false);
+            inspectors.Current?.RemoteAfterEdit();
+        }
+        return ok;
+    }
+
+    public bool Redo()
+    {
+        if (history.PopRedo() is not { } seq || history.Find(seq) is not { Undone: true } entry)
+            return false;
+
+        if (entry.Section == "Structure")
+        {
+            if (!structure.Redo(seq))
+                return false;
+            history.Record(elements.Find(entry.ElementId), entry.Section, entry.Name, "(undone)", "(redone)", canUndo: false);
+            return true;
+        }
+
+        var row = FindRows(entry.ElementId, entry.Section)?
+            .FirstOrDefault(r => r.Name == entry.Name && r.Editor != null);
+        if (row?.Editor is not { } editor)
+            return false;
+
+        var ok = (entry.NewValue.Length == 0 || entry.NewValue == "(cleared)") && editor.CanClear
+            ? editor.Clear()
+            : editor.Apply(entry.NewValue);
+
+        if (ok)
+        {
+            history.MarkRedone(seq);
+            history.Record(elements.Find(entry.ElementId), entry.Section, entry.Name, entry.OldValue, entry.NewValue, canUndo: false);
             inspectors.Current?.RemoteAfterEdit();
         }
         return ok;

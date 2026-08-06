@@ -34,7 +34,7 @@ internal static class SectionBuilder
             raw as Color,
             EditorFactory.Clr(el, property),
             Binding: BindingDescriptor.Describe(el, property),
-            DeviceExpression: InspectorServices.Expressions.Find(el, property),
+            DeviceExpression: InspectorServices.Current.Expressions.Find(el, property),
             Resources: SuggestionsFor(el, property, Nullable.GetUnderlyingType(pi.PropertyType) ?? pi.PropertyType)));
     }
 

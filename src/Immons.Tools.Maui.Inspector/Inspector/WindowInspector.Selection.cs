@@ -40,7 +40,7 @@ internal sealed partial class WindowInspector
         if (!_panelLayer.TreeContains(element))
             RefreshTree();
 
-        var sections = InspectorServices.Properties.Collect(element, GetRectInWindow(element));
+        var sections = InspectorServices.Current.Properties.Collect(element, GetRectInWindow(element));
         _panelLayer.ShowSelection(element, sections, ParentChain(element), scrollTree);
     }
 

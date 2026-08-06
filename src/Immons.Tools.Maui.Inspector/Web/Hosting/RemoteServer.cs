@@ -107,7 +107,7 @@ internal sealed class RemoteServer
     static void Announce(string message, LogLevel level)
     {
         Console.WriteLine("[MauiInspector] " + message);
-        InspectorServices.Logs.Write(level, "MauiInspector", message);
+        InspectorServices.Current.Logs.Write(level, "MauiInspector", message);
     }
 
     /// <summary>

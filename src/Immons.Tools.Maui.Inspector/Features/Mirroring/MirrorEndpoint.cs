@@ -11,7 +11,7 @@ internal sealed class MirrorEndpoint(
     {
         if (method == HttpVerbs.Get && path == ApiRoutes.Mirror.Screenshot)
         {
-            var bytes = await mainThread.RunTaskAsync(Capture).ConfigureAwait(false);
+            var bytes = await mainThread.RunTaskAsync(CaptureComposited).ConfigureAwait(false);
             await HttpResponse.WriteBytes(context, "image/png", bytes).ConfigureAwait(false);
             return true;
         }
@@ -28,6 +28,15 @@ internal sealed class MirrorEndpoint(
         }
 
         return false;
+    }
+
+    /// <summary>Inspector-composited capture first — Essentials' Screenshot misses the
+    /// separate windows Android hosts modal pages in.</summary>
+    async Task<byte[]> CaptureComposited()
+    {
+        if (inspectors.Current?.CapturePng() is { } composited)
+            return composited;
+        return await Capture();
     }
 
     static async Task<byte[]> Capture()

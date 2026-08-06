@@ -191,4 +191,7 @@ internal sealed partial class WindowInspector
     private partial Point GetLayerOriginPlatform() => Point.Zero;
 
     private partial double GetBottomInsetPlatform() => 0;
+
+    // Modals render inside the same XAML root, Essentials' Screenshot captures them.
+    private partial byte[]? CapturePngPlatform() => null;
 }

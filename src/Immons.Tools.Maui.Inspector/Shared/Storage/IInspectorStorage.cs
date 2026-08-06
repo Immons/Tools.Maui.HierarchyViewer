@@ -1,5 +1,6 @@
 using Immons.Tools.Maui.Inspector.Features.Editing.Storage;
 using Immons.Tools.Maui.Inspector.Features.NetworkInspection.Storage;
+using Immons.Tools.Maui.Inspector.Features.Structure.Storage;
 
 namespace Immons.Tools.Maui.Inspector.Shared.Storage;
 
@@ -14,4 +15,6 @@ internal interface IInspectorStorage
     IBreakpointStore Breakpoints { get; }
 
     IExpressionStore Expressions { get; }
+
+    IStructureStore Structure { get; }
 }

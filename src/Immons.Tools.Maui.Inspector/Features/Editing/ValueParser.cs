@@ -92,6 +92,15 @@ internal static class ValueParser
                     return true;
                 }
                 return false;
+
+            case EditorKind.Image:
+                if (text.Length == 0)
+                    return false;
+                // Same convention as XAML's ImageSourceConverter: URI or bundled file name.
+                value = Uri.TryCreate(text, UriKind.Absolute, out var uri) && !uri.IsFile
+                    ? ImageSource.FromUri(uri)
+                    : ImageSource.FromFile(text);
+                return true;
         }
 
         return false;
