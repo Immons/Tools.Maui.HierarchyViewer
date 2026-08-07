@@ -151,6 +151,7 @@ while (true)
             if (connectedApps.Add(url))
                 Console.WriteLine($"connected to {url}");
 
+            var acks = new JsonArray();
             foreach (var node in json?["changes"] as JsonArray ?? [])
             {
                 if (node == null)
@@ -166,7 +167,27 @@ while (true)
                     node["remove"]?.GetValue<bool>() ?? false,
                     node["op"]?.GetValue<string>() ?? "attr");
 
-                patcher.Apply(change);
+                var (ok, message) = patcher.Apply(change);
+                acks.Add(new JsonObject
+                {
+                    ["seq"] = node["seq"]?.GetValue<long>() ?? 0,
+                    ["ok"] = ok,
+                    ["message"] = message,
+                });
+            }
+
+            // The panel shows a per-field spinner until this ack lands.
+            if (acks.Count > 0)
+            {
+                try
+                {
+                    await http.PostAsync($"{url}/api/changes/ack",
+                        new StringContent(new JsonObject { ["results"] = acks }.ToJsonString()));
+                }
+                catch
+                {
+                    // an app that vanished mid-batch will re-serve the changes anyway
+                }
             }
 
             cursors[url] = json?["seq"]?.GetValue<long>() ?? cursors[url];

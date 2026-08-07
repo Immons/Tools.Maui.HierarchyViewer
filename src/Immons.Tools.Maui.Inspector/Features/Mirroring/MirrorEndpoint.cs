@@ -11,8 +11,26 @@ internal sealed class MirrorEndpoint(
     {
         if (method == HttpVerbs.Get && path == ApiRoutes.Mirror.Screenshot)
         {
-            var bytes = await mainThread.RunTaskAsync(CaptureComposited).ConfigureAwait(false);
-            await HttpResponse.WriteBytes(context, "image/png", bytes).ConfigureAwait(false);
+            // Single-flight: captures must never pile up behind a slow encode — a poll that
+            // arrives while one is running gets the previous frame instead of queueing work.
+            byte[] bytes;
+            if (await _captureGate.WaitAsync(0).ConfigureAwait(false))
+            {
+                try
+                {
+                    bytes = await CaptureFrame().ConfigureAwait(false);
+                    _lastFrame = bytes;
+                }
+                finally
+                {
+                    _captureGate.Release();
+                }
+            }
+            else
+            {
+                bytes = _lastFrame ?? await CaptureFrame().ConfigureAwait(false);
+            }
+            await HttpResponse.WriteBytes(context, "image/jpeg", bytes).ConfigureAwait(false);
             return true;
         }
 
@@ -52,21 +70,29 @@ internal sealed class MirrorEndpoint(
         return false;
     }
 
-    /// <summary>Inspector-composited capture first — Essentials' Screenshot misses the
-    /// separate windows Android hosts modal pages in.</summary>
-    async Task<byte[]> CaptureComposited()
-    {
-        if (inspectors.Current?.CapturePng() is { } composited)
-            return composited;
-        return await Capture();
-    }
+    readonly SemaphoreSlim _captureGate = new(1, 1);
+    volatile byte[]? _lastFrame;
 
-    static async Task<byte[]> Capture()
+    /// <summary>
+    /// Only the platform capture itself runs on the UI thread; the encode — the expensive
+    /// part (UIImage.AsPNG used to stall the app every mirror tick) — runs on the pool,
+    /// and as JPEG, which encodes several times faster than PNG for a full screen.
+    /// Inspector-composited capture first — Essentials' Screenshot misses the separate
+    /// windows Android hosts modal pages in.
+    /// </summary>
+    async Task<byte[]> CaptureFrame()
     {
-        var shot = await Screenshot.Default.CaptureAsync();
-        using var stream = await shot.OpenReadAsync(ScreenshotFormat.Png);
-        using var buffer = new MemoryStream();
-        await stream.CopyToAsync(buffer);
-        return buffer.ToArray();
+        var composited = await mainThread.RunAsync(() => inspectors.Current?.CapturePng()).ConfigureAwait(false);
+        if (composited != null)
+            return composited;
+
+        var shot = await mainThread.RunTaskAsync(() => Screenshot.Default.CaptureAsync()).ConfigureAwait(false);
+        return await Task.Run(async () =>
+        {
+            using var stream = await shot.OpenReadAsync(ScreenshotFormat.Jpeg, quality: 80).ConfigureAwait(false);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer).ConfigureAwait(false);
+            return buffer.ToArray();
+        }).ConfigureAwait(false);
     }
 }

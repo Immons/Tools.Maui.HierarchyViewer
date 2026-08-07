@@ -41,6 +41,7 @@ internal sealed class XamlChangeLog(IAddedElements added) : IXamlChangeLog
 
     readonly object _gate = new();
     readonly Dictionary<string, Change> _latest = [];
+    readonly Dictionary<long, (bool Ok, string Message)> _writeResults = [];
     long _seq;
     volatile bool _enabled;
 
@@ -48,6 +49,41 @@ internal sealed class XamlChangeLog(IAddedElements added) : IXamlChangeLog
     {
         get => _enabled;
         set => _enabled = value;
+    }
+
+    public long LastSeq
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _seq;
+            }
+        }
+    }
+
+    public void AckWrite(long seq, bool ok, string message)
+    {
+        lock (_gate)
+        {
+            _writeResults[seq] = (ok, message);
+            // The ring stays small — acks older than the last hundred are of no interest.
+            if (_writeResults.Count > 200)
+            {
+                foreach (var stale in _writeResults.Keys.OrderBy(k => k).Take(_writeResults.Count - 100).ToList())
+                    _writeResults.Remove(stale);
+            }
+        }
+    }
+
+    public (string State, string? Message) WriteStatus(long seq)
+    {
+        lock (_gate)
+        {
+            return _writeResults.TryGetValue(seq, out var result)
+                ? (result.Ok ? "applied" : "failed", result.Message)
+                : ("pending", null);
+        }
     }
 
     public void Record(object target, string attribute, string value)

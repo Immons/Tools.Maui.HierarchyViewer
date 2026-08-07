@@ -21,6 +21,7 @@ internal sealed class ElementJsonBuilder(
             ["elementName"] = element.StyleId ?? "",
             ["automationId"] = element.AutomationId ?? "",
             ["page"] = PageIdentity.Of(element),
+            ["templated"] = AutomationIdBinder.IsTemplatedItem(element),
         };
 
         if (XamlSource.Describe(element) is { } sourceInfo)

@@ -80,6 +80,11 @@ input[type=text], select { background: var(--bg2); color: var(--text); border: 1
 input[type=text]:focus { outline: none; border-color: var(--accent); }
 input.bad { border-color: #e05252; }
 input.warn { border-color: var(--measure); }
+.writestate { margin-left: 6px; font-size: 13px; flex: none; }
+.writestate.spin { display: inline-block; color: var(--accent); animation: writespin 1s linear infinite; }
+.writestate.okmark { color: #7fd48a; }
+.writestate.failmark { color: #e08585; cursor: help; }
+@keyframes writespin { to { transform: rotate(360deg); } }
 .ro { font: 12px ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
 .valrow { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .valrow input[type=text], .valrow select { flex: 0 1 auto; }
@@ -175,6 +180,16 @@ input.warn { border-color: var(--measure); }
 .netrow, .logrow { font: 12px ui-monospace, Menlo, Consolas, monospace;
                    padding: 3px 0; border-bottom: 1px solid var(--divider); word-break: break-all; }
 .netrow .ok { color: #7fd48a; } .netrow .err { color: #e08585; }
+/* Requests history is a real table: equal columns across rows, URL gets the rest. */
+#nethistory .netrow { display: grid; align-items: baseline; gap: 0 12px; word-break: normal;
+    grid-template-columns: 66px 38px 52px minmax(0, 1fr) 76px 72px minmax(0, 220px); }
+#nethistory .netrow.netmsg { display: block; }
+#nethistory .netrow.netmsg[hidden] { display: none; }
+#nethistory .nethead span { color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+#nethistory .neturl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nethistory .netnum { text-align: right; color: var(--text2); white-space: nowrap; }
+#nethistory .netdim { color: var(--text2); }
+#nethistory .nettag { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logrow .lvl-Warning { color: #e8a33d; } .logrow .lvl-Error, .logrow .lvl-Critical { color: #e08585; }
 .logrow .cat { color: var(--text2); }
 .hentry { padding: 6px 0; border-bottom: 1px solid var(--divider); font-size: 12px; }

@@ -65,6 +65,15 @@ public partial class MainPage : ContentPage
 		int _counter = 7;
 		bool _isBusy;
 
+		public sealed record Fruit(int Id, string Name);
+
+		public System.Collections.Generic.List<Fruit> Fruits { get; } =
+		[
+			new(1, "Apple"),
+			new(2, "Banana"),
+			new(3, "Cherry"),
+		];
+
 		public string Greeting
 		{
 			get => _greeting;

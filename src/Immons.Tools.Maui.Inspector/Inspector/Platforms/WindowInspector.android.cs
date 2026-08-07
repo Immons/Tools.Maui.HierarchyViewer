@@ -186,7 +186,9 @@ internal sealed partial class WindowInspector
         }
 
         using var stream = new MemoryStream();
-        bitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Png!, 100, stream);
+        // JPEG: the mirror refreshes continuously and PNG encoding of a full screen on the
+        // UI thread is exactly the kind of stall the mirror must not cause.
+        bitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Jpeg!, 80, stream);
         return stream.ToArray();
     }
 

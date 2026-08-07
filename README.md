@@ -47,7 +47,7 @@ Everything runs **inside your app**: no IDE integration, no proxy, no certificat
 
 ```xml
 <!-- Debug-only reference keeps the inspector out of release builds entirely -->
-<PackageReference Include="Immons.Tools.Maui.Inspector" Version="0.9.13" Condition="'$(Configuration)' == 'Debug'" />
+<PackageReference Include="Immons.Tools.Maui.Inspector" Version="0.9.14" Condition="'$(Configuration)' == 'Debug'" />
 ```
 
 Targets `net10.0-ios`, `net10.0-android` and `net10.0-windows` (plus a no-op `net10.0`), MIT licensed.
@@ -115,8 +115,8 @@ green on stale data. The **Devices** view lists each target with its address and
 that no longer answer, with one button to drop them (ports are recycled between runs, so stale
 entries accumulate).
 
-The header shows which package build is running (`v0.9.13`) next to the title. The panel also asks
-nuget.org for the newest published version and turns that into `v0.9.13 → 0.9.14 available` when you
+The header shows which package build is running (`v0.9.14`) next to the title. The panel also asks
+nuget.org for the newest published version and turns that into `v0.9.14 → 0.9.15 available` when you
 are behind — a plain GET of a public index, silently skipped when there is no connection.
 
 A **device picker** next to the title points the whole panel — tree, properties, mirror,
@@ -190,6 +190,7 @@ Values are in **dp**. Aligned edges (delta ≈ 0) are omitted.
 - **Live editing** — text/number fields, switches and pickers for anything with a public setter: `FontSize`, `Margin`, `Padding`, `Text`, colors (`#RRGGBB`, `#AARRGGBB` or named), `Thickness` (`8`, `8,4`, `8,4,8,4`), enums, `LayoutOptions`, `Keyboard`, `Image.Source`… The highlight re-measures after every change.
 - **Markup extensions** — type `{Binding X}`, `{StaticResource Y}`, `{OnPlatform …}` or your own extension (`{extensions:Translate Key}`) into any editor and it is applied for real; a custom extension that cannot be instantiated is kept as a XAML-only edit instead of landing as literal `{…}` text.
 - **Suggestions** — text editors offer what actually fits the property: registered font aliases for `FontFamily`, and `{StaticResource Key}` type-ahead over the resources whose value matches the property type (colors for `TextColor`, doubles for `FontSize`, strings for `Text`…). The **⋔** button opens a small per-platform / per-idiom form (iOS · Android · WinUI, Phone · Tablet · Desktop); the applied expression is shown next to the value and remembered across app restarts.
+- **Markup origins** — XAML-authored expressions are resolved at parse time, so at runtime a property only holds the result; the inspector reads the element's tag from the **XAML embedded in the assembly** and shows the truth as badges: `⋔ {OnIdiom Phone='16,0', Tablet='37,0'}` next to the resolved `Margin`, `🖌 {StaticResource EazleFontFamily}` next to the resolved `FontFamily` — spans included. Style setters resolved from a `{StaticResource}` display as that reference too, with the referenced resource editable right underneath in the Resources popup.
 - **Binding-aware** — bound properties show a `⛓ {Binding …}` badge (compiled `x:DataType` bindings included — the path is reconstructed from the `TypedBinding`), and literal edits on them stay runtime-only so the binding expression in your XAML is never overwritten by a constant.
 - **Styles** — the current `Style` resolved to its resource key with all setters listed, and a picker to apply any other reachable style (local values are cleared so the style actually takes effect). See [Styles & resources](#styles--resources) for style extraction and the editable Resources popup.
 - **Shadow** — `＋ Add shadow` with per-part editors, a `Shadow` field that accepts (and suggests) `{StaticResource …}` shadows, and a `🖌 style` badge when the shadow comes from a style. Runtime-created shadows are written to XAML in the converter form (`Shadow="0 4 8 #66000000 0.5"`); XAML-declared `<Shadow>` tags are patched in place.
@@ -255,7 +256,9 @@ side — and `🗗` docks it back. The **Fit** button, zoom slider (25–300%, o
 and drag-to-pan keep big tablet screenshots manageable; clicking, right-clicking and dropping
 all stay accurate at any zoom, pan and device rotation. The mirror starts automatically when
 the panel opens, and on Android it captures the real GPU frame of **every window** (modal pages
-live in separate dialogs there), so what you see is exactly what the device shows.
+live in separate dialogs there), so what you see is exactly what the device shows. Frames are
+JPEG-encoded off the UI thread with captures never queueing up behind a slow one, so the
+running app stays smooth while the mirror streams.
 
 With **Select mode off**, clicking the mirror forwards the tap into the app itself — like a
 remote-desktop client. On Android a real touch event is injected (buttons, list rows, entries —
@@ -386,7 +389,11 @@ device) are written back into your XAML source files.
    no reformatting. Style extraction inserts the `<Style>` block into the page resources,
    setter and scalar-resource edits patch the owning dictionary file (located by `x:Key`).
    Only the latest value per attribute is written; the toggle can be flipped on/off at any time.
-4. Pair it with your IDE's **XAML Hot Reload** and the loop closes: web edit → file save →
+4. Every write is **confirmed back to the panel**: the edited field shows a spinner while
+   the updater works, then ✓ when the value landed in the file — or ⚠ with the exact reason
+   (file not found under `--src`, drifted anchor…) when it did not, so a silently-lost edit
+   cannot happen.
+5. Pair it with your IDE's **XAML Hot Reload** and the loop closes: web edit → file save →
    hot reload → app updates.
 
 Safety: the XAML Updater verifies the element name at the recorded location and skips (with a warning)
@@ -451,7 +458,8 @@ builder.Logging.AddMauiInspector();
 
 ![Network requests](docs/web-network.png)
 
-Every call that goes through `MauiInspectorHttpHandler` is recorded with full request and
+Every call that goes through `MauiInspectorHttpHandler` is recorded in an aligned table
+(time · status · method · URL · duration · size · matched rule) with full request and
 response bodies (click a row to expand). Breakpoints pause matching requests or responses so you
 can edit the body or status and continue — Proxyman-style, but inside the process, so TLS and
 certificate pinning are none of your concern.
@@ -512,6 +520,16 @@ above → from then on selecting that scenario runs the whole app with no networ
 A UI test needs two things from the inspector: **which rules exist** and **which scenario is
 active** — decided before the app makes its first call, because a version check or a token refresh
 fires during startup, long before a test step could run.
+
+**0. Give DataTemplate rows unique AutomationIds.** Every row of a `CollectionView` /
+`BindableLayout` comes from one XAML line, so a literal `AutomationId` cannot tell them apart —
+but the items' data can. Select any element inside an items host and use **🆔** (next to the
+AutomationId field, or in the tree's right-click menu): the dialog lists the item
+`BindingContext`'s properties, marks which ones actually hold **unique values across the live
+rows**, previews the resulting ids (`visit-101, visit-102, …`) and applies
+`AutomationId="{Binding Id, StringFormat='visit-{0}'}"` to every instance — live and written
+back to the template's XAML. The on-device panel has a one-tap variant that picks the best
+unique property (`Id`-like names first) by itself.
 
 **1. Ship the rules with the test build.** Record a flow in the panel, hit **⬆ Export**, and add the
 file to the app project:
@@ -680,6 +698,7 @@ are not migrated — they land in SQLite the next time you apply an edit. The da
 - The web panel is served by an `HttpListener` inside the app; the client is a dependency-free static page embedded in the assembly.
 - Element bounds come from the native views (`GetLocationInWindow` / `ConvertRectToView` / `TransformToVisual`), so scrolling and transforms are reflected.
 - HTTP interception is a plain `DelegatingHandler` — no proxy, no system certificates, nothing to trust.
+- The inspector registers in the standard `IServiceCollection` and keeps every service to a single public constructor, so apps that swap the MAUI container (Autofac & co.) resolve it fine.
 
 ### Troubleshooting the connection
 

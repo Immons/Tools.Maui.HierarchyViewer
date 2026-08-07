@@ -24,6 +24,7 @@ async function loadProps(id, keepScroll) {
     type: data.type || '',
     page: data.page || '',
   };
+  currentTemplated = !!data.templated;
 
   if (data.source) {
     const src = document.createElement('div');
@@ -177,6 +178,17 @@ function renderPropRow(id, section, row) {
       line.appendChild(list);
     }
     line.appendChild(input);
+  }
+
+  // Data-templated rows share one XAML line — the 🆔 dialog binds AutomationId to item
+  // data so every instance gets a different id (also in the tree's right-click menu).
+  if (section === 'Element' && row.name === 'AutomationId' && currentTemplated) {
+    const uniq = document.createElement('button');
+    uniq.className = 'rowbtn';
+    uniq.textContent = '🆔';
+    uniq.title = 'Unique AutomationId from item data — for DataTemplate / BindableLayout rows';
+    uniq.onclick = () => openAutoIdDialog(id);
+    line.appendChild(uniq);
   }
 
   if (row.kind) {
@@ -370,6 +382,8 @@ async function apply(id, section, name, value, control, refresh) {
   control.classList.toggle('bad', !data.ok);
   if (data.ok)
     mirrorApply(section, name, value);
+  if (data.ok && data.writeSeq && syncConnected)
+    watchWrite(control, data.writeSeq);
   // Picker/checkbox edits (style, enums…) often change other rows — reload them in place.
   if (data.ok && refresh)
     await loadProps(id, true);
@@ -406,4 +420,38 @@ function showSuggestionMenu(input, suggestions, x, y) {
 
 function closeSuggestionMenu() {
   if (suggestionMenu) { suggestionMenu.remove(); suggestionMenu = null; }
+}
+
+// XAML write feedback: a spinner next to the edited field until the updater's ack lands,
+// then ✓ (fades) or ⚠ with the failure reason. No updater ack within ~10 s → give up quietly.
+async function watchWrite(control, seq) {
+  control.parentElement?.querySelector('.writestate')?.remove();
+  const state = document.createElement('span');
+  state.className = 'writestate spin';
+  state.textContent = '⟳';
+  state.title = 'Writing to the XAML file…';
+  control.after(state);
+
+  for (let attempt = 0; attempt < 14; attempt++) {
+    await new Promise(r => setTimeout(r, 700));
+    if (!state.isConnected) return;   // the row was re-rendered — stop quietly
+    let d;
+    try {
+      d = await (await fetch('/api/changes/status?seq=' + seq)).json();
+    } catch { continue; }
+    if (d.state === 'applied') {
+      state.className = 'writestate okmark';
+      state.textContent = '✓';
+      state.title = 'Written to the XAML file' + (d.message ? ': ' + d.message : '');
+      setTimeout(() => state.remove(), 2500);
+      return;
+    }
+    if (d.state === 'failed') {
+      state.className = 'writestate failmark';
+      state.textContent = '⚠';
+      state.title = 'XAML write failed: ' + (d.message || 'see the updater console');
+      return;
+    }
+  }
+  state.remove();   // no ack (older updater?) — don't pretend either way
 }

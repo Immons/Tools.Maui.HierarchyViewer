@@ -9,7 +9,8 @@ internal sealed class ElementEndpoint(
     IElementRegistry elements,
     IElementJsonBuilder elementJson,
     IPropertyCommands commands,
-    IStructureCommands structure) : IHttpEndpoint
+    IStructureCommands structure,
+    AutomationIdBinder automationIds) : IHttpEndpoint
 {
     public async Task<bool> TryHandle(HttpListenerContext context, string method, string path)
     {
@@ -37,6 +38,27 @@ internal sealed class ElementEndpoint(
                 await HttpResponse.WriteText(context, 404, "element not found").ConfigureAwait(false);
             else
                 await HttpResponse.WriteText(context, 200, xaml).ConfigureAwait(false);
+            return true;
+        }
+
+        if (method == HttpVerbs.Get && verb == "automationid-candidates")
+        {
+            var json = await mainThread.RunAsync(() => automationIds.Candidates(id)).ConfigureAwait(false);
+            await HttpResponse.WriteJson(context, json).ConfigureAwait(false);
+            return true;
+        }
+
+        if (method == HttpVerbs.Post && verb == "automationid-bind")
+        {
+            var node = await RequestBody.ReadJson(context).ConfigureAwait(false);
+            var bindingPath = node?["path"]?.GetValue<string>() ?? "";
+            var format = node?["format"]?.GetValue<string>() ?? "";
+            var result = await mainThread.RunAsync(() => automationIds.Bind(id, bindingPath, format)).ConfigureAwait(false);
+            await HttpResponse.WriteJson(context, new System.Text.Json.Nodes.JsonObject
+            {
+                ["ok"] = result.Ok,
+                ["error"] = result.Error,
+            }.ToJsonString()).ConfigureAwait(false);
             return true;
         }
 
@@ -84,11 +106,23 @@ internal sealed class ElementEndpoint(
             var value = node?["value"]?.GetValue<string>() ?? "";
             var clear = node?["clear"]?.GetValue<bool>() ?? false;
 
-            var ok = await mainThread.RunAsync(() => verb == "property"
-                ? (clear ? commands.Clear(id, section, name) : commands.Apply(id, section, name, value))
-                : commands.RunAction(id, section, name)).ConfigureAwait(false);
+            var result = await mainThread.RunAsync(() =>
+            {
+                var changeLog = InspectorServices.Current.XamlChanges;
+                var seqBefore = changeLog.LastSeq;
+                var ok = verb == "property"
+                    ? (clear ? commands.Clear(id, section, name) : commands.Apply(id, section, name, value))
+                    : commands.RunAction(id, section, name);
+                var seqAfter = changeLog.LastSeq;
+                // The panel watches this seq for the updater's write ack (per-field spinner).
+                return (Ok: ok, WriteSeq: seqAfter > seqBefore ? seqAfter : (long?)null);
+            }).ConfigureAwait(false);
 
-            await HttpResponse.WriteOk(context, ok).ConfigureAwait(false);
+            await HttpResponse.WriteJson(context, new System.Text.Json.Nodes.JsonObject
+            {
+                ["ok"] = result.Ok,
+                ["writeSeq"] = result.WriteSeq,
+            }.ToJsonString()).ConfigureAwait(false);
             return true;
         }
 

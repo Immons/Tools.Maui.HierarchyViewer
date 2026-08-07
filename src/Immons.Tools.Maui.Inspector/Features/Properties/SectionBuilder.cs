@@ -29,30 +29,35 @@ internal static class SectionBuilder
         try { raw = pi.GetValue(el); }
         catch { /* getter threw — show the row as empty */ }
 
+        var (sourceExpression, sourceReference) = SourceMarkup(el, property);
         s.Rows.Add(new PropertyRow(
             label ?? property,
             value ?? ValueFormatter.FormatValue(raw),
             raw as Color,
             EditorFactory.Clr(el, property),
             Binding: BindingDescriptor.Describe(el, property),
-            DeviceExpression: InspectorServices.Current.Expressions.Find(el, property)
-                              ?? SourceDeviceExpression(el, property),
+            DeviceExpression: InspectorServices.Current.Expressions.Find(el, property) ?? sourceExpression,
             Resources: SuggestionsFor(el, property, Nullable.GetUnderlyingType(pi.PropertyType) ?? pi.PropertyType),
-            Note: note));
+            Note: note ?? sourceReference));
     }
 
     /// <summary>
-    /// XAML-authored "{OnIdiom …}"/"{OnPlatform …}" are resolved at parse time and leave no
-    /// runtime trace — the raw attribute read from the embedded source shows the truth.
+    /// XAML-authored "{OnIdiom …}"/"{StaticResource …}" are resolved at parse time and leave
+    /// no runtime trace — the raw attribute read from the embedded source shows the truth.
+    /// Per-device expressions feed the ⋔ badge; resource references the origin note.
     /// </summary>
-    static string? SourceDeviceExpression(object el, string property)
+    static (string? DeviceExpression, string? ResourceReference) SourceMarkup(object el, string property)
     {
         var text = XamlSourceText.AttributeText(el, property)?.Trim();
-        return text != null
-               && (text.StartsWith("{OnIdiom", StringComparison.Ordinal)
-                   || text.StartsWith("{OnPlatform", StringComparison.Ordinal))
-            ? text
-            : null;
+        if (text == null)
+            return (null, null);
+        if (text.StartsWith("{OnIdiom", StringComparison.Ordinal)
+            || text.StartsWith("{OnPlatform", StringComparison.Ordinal))
+            return (text, null);
+        if (text.StartsWith("{StaticResource", StringComparison.Ordinal)
+            || text.StartsWith("{DynamicResource", StringComparison.Ordinal))
+            return (null, text);
+        return (null, null);
     }
 
     /// <summary>

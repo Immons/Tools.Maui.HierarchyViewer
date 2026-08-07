@@ -30,6 +30,20 @@ internal sealed class ElementSectionBuilder : IPropertySectionBuilder
                     return true;
                 },
             }));
+
+        // Data-templated rows share one XAML line — bind AutomationId to the items' data so
+        // every instance gets a different id. The web panel opens a picker (🆔 next to the
+        // field); on the device this one-tap picks the best unique property by itself.
+        // Only shown inside an items host — everywhere else a literal id is the right tool.
+        if (AutomationIdBinder.IsTemplatedItem(el))
+        {
+            s.Rows.Add(new PropertyRow("", "🆔 Unique AutomationId (bind to item data)", Action: () =>
+                new AutomationIdBinder(
+                        InspectorServices.Current.Elements,
+                        new ActiveInspectorProvider(),
+                        InspectorServices.Current.XamlChanges)
+                    .BindBest(el)));
+        }
         Add(s, "Type", el.GetType().FullName ?? el.GetType().Name);
         if (!string.IsNullOrEmpty(el.StyleId))
             Add(s, "StyleId", el.StyleId);

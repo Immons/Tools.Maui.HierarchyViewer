@@ -109,6 +109,8 @@ internal static class ApiRoutes
     public static class Changes
     {
         public const string List = "/api/changes";
+        public const string Ack = "/api/changes/ack";
+        public const string Status = "/api/changes/status";
     }
 
     public static class Mirror

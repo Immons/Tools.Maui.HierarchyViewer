@@ -137,7 +137,7 @@ function applyRequestFilter(query) {
   const q = (query || '').trim().toLowerCase();
   let shown = 0;
   for (const row of document.querySelectorAll('#nethistory .netrow')) {
-    if (row.id === 'reqempty') continue;
+    if (row.id === 'reqempty' || row.classList.contains('nethead')) continue;
     const hit = !q || (row.dataset.search || '').includes(q);
     row.hidden = !hit;
     if (hit) shown++;
@@ -674,15 +674,28 @@ function renderHistory(entries) {
   netUi.historyJson = json;
 
   const host = document.getElementById('nethistory');
-  host.innerHTML = entries.length ? '' : '<div class="netrow">No requests yet — add MauiInspectorHttpHandler to your HttpClient.</div>';
+  host.innerHTML = entries.length ? '' : '<div class="netrow netmsg">No requests yet — add MauiInspectorHttpHandler to your HttpClient.</div>';
+  if (entries.length) {
+    const head = el('div', 'netrow nethead');
+    for (const caption of ['Time', 'St.', 'Method', 'URL', 'Duration', 'Size', 'Rule'])
+      head.appendChild(el('span', '', caption));
+    host.appendChild(head);
+  }
   for (const e of entries) {
     const div = el('div', 'netrow');
     div.dataset.search = [e.method, e.url, e.status, e.error, e.tag, e.time]
       .filter(v => v !== null && v !== undefined).join(' ').toLowerCase();
     const status = el('span', (e.status >= 200 && e.status < 400) ? 'ok' : 'err', e.error ? e.error : e.status);
-    div.append(e.time + '  ', status, '  ' + e.method + '  ' + e.url + '  ·  ' + e.ms + ' ms'
-      + (e.bytes != null ? '  ·  ' + e.bytes + ' B' : ''));
-    if (e.tag) div.append(el('span', 'nettag', '  ' + e.tag));
+    const url = el('span', 'neturl', e.url);
+    url.title = e.url;
+    div.append(
+      el('span', 'netdim', e.time),
+      status,
+      el('span', '', e.method),
+      url,
+      el('span', 'netnum', e.ms + ' ms'),
+      el('span', 'netnum', e.bytes != null ? e.bytes + ' B' : ''),
+      el('span', 'nettag', e.tag || ''));
     // Every row opens — a call whose body was not captured (binary, empty, over the size cap)
     // must still be turnable into a mock rule.
     div.style.cursor = 'pointer';
@@ -691,7 +704,7 @@ function renderHistory(entries) {
     host.appendChild(div);
   }
 
-  const empty = el('div', 'netrow', 'No request matches the filter.');
+  const empty = el('div', 'netrow netmsg', 'No request matches the filter.');
   empty.id = 'reqempty';
   empty.hidden = true;
   host.appendChild(empty);

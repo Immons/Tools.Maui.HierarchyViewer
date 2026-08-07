@@ -166,19 +166,19 @@ public sealed class XamlPatcher
         _dryRun = dryRun;
     }
 
-    public void Apply(XamlChange change)
+    /// <summary>Applies one change; the outcome feeds the ack POSTed back to the app.</summary>
+    public (bool Ok, string Message) Apply(XamlChange change)
     {
         // "Views/Foo.xaml;assembly=MyApp" → relative path
         var relativePath = change.Source.Split(';')[0].TrimStart('/');
         var key = $"{relativePath}:{change.Line}:{change.Column}|{change.Op}|{change.Attribute}={(change.Remove ? "\0removed" : change.Value)}";
         if (!_appliedKeys.Add(key))
-            return; // same value already applied this session
+            return (true, "already applied"); // same value already applied this session
 
         var file = ResolveFile(relativePath);
         if (file == null)
         {
-            Warn($"{relativePath}: file not found under {_root}");
-            return;
+            return Fail($"{relativePath}: file not found under {_root}");
         }
 
         string text;
@@ -188,8 +188,7 @@ public sealed class XamlPatcher
         }
         catch (Exception ex)
         {
-            Warn($"{relativePath}: {ex.Message}");
-            return;
+            return Fail($"{relativePath}: {ex.Message}");
         }
 
         var state = _states.TryGetValue(file, out var existing) ? existing : _states[file] = new FileState();
@@ -231,15 +230,12 @@ public sealed class XamlPatcher
         }
 
         if (patched == null)
-        {
-            Warn($"{relativePath}:{change.Line} {message}");
-            return;
-        }
+            return Fail($"{relativePath}:{change.Line} {message}");
 
         if (patched == text)
         {
             Info($"{relativePath}:{change.Line} {report} — already applied");
-            return;
+            return (true, "already applied");
         }
 
         if (!_dryRun)
@@ -250,14 +246,14 @@ public sealed class XamlPatcher
             }
             catch (Exception ex)
             {
-                Warn($"{relativePath}: write failed: {ex.Message}");
-                return;
+                return Fail($"{relativePath}: write failed: {ex.Message}");
             }
         }
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"✔ {relativePath}:{change.Line}  {report}{(_dryRun ? "  (dry run)" : "")}");
         Console.ResetColor();
+        return (true, report);
     }
 
     /// <summary>Build-time anchor → current offset through this session's edit history.</summary>
@@ -1451,6 +1447,12 @@ public sealed class XamlPatcher
     }
 
     static void Info(string message) => Console.WriteLine($"  {message}");
+
+    static (bool, string) Fail(string message)
+    {
+        Warn(message);
+        return (false, message);
+    }
 
     static void Warn(string message)
     {

@@ -39,6 +39,15 @@ internal interface IXamlChangeLog
     /// <summary>New value of a scalar/color resource, keyed by dictionary file + x:Key.</summary>
     void RecordResourceValue(string? dictionarySource, string key, string value);
 
+    /// <summary>Seq of the most recently recorded change — 0 when nothing was recorded yet.</summary>
+    long LastSeq { get; }
+
+    /// <summary>The updater's verdict on one applied change.</summary>
+    void AckWrite(long seq, bool ok, string message);
+
+    /// <summary>"pending" | "applied" | "failed" (+ message) for a recorded change.</summary>
+    (string State, string? Message) WriteStatus(long seq);
+
     /// <summary>Inserts a Style block into the page's resources (upsert per op; cancel on undo).</summary>
     void RecordStyleResource(StructureOp op);
 

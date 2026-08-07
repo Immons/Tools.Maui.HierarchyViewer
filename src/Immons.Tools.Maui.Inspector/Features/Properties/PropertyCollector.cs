@@ -1,29 +1,30 @@
 namespace Immons.Tools.Maui.Inspector.Features.Properties;
 
 /// <summary>Composes the section builders in display order.</summary>
-internal sealed class PropertyCollector(IReadOnlyList<IPropertySectionBuilder> builders) : IPropertyCollector
+/// <remarks>
+/// Deliberately a single public constructor: host apps may swap the MAUI container for
+/// Autofac, whose default selector throws on multiple constructors of equal length.
+/// </remarks>
+internal sealed class PropertyCollector(IXamlChangeLog xamlChanges) : IPropertyCollector
 {
-    public PropertyCollector(IXamlChangeLog xamlChanges)
-        : this(
-        [
-            new ElementSectionBuilder(),
-            new StyleSectionBuilder(),
-            new BoundsSectionBuilder(),
-            new LayoutSectionBuilder(),
-            new GridDefinitionsSectionBuilder(xamlChanges),
-            new TextSectionBuilder(),
-            new SpanSectionBuilder(),
-            new AppearanceSectionBuilder(),
-            new TransformSectionBuilder(),
-            new InteractionSectionBuilder(),
-            new AccessibilitySectionBuilder(),
-            new ControlSectionBuilder(),
-            new CustomPropertiesSectionBuilder(),
-            new BindingContextSectionBuilder(),
-            new AllPropertiesSectionBuilder(),
-        ])
-    {
-    }
+    readonly IReadOnlyList<IPropertySectionBuilder> builders =
+    [
+        new ElementSectionBuilder(),
+        new StyleSectionBuilder(),
+        new BoundsSectionBuilder(),
+        new LayoutSectionBuilder(),
+        new GridDefinitionsSectionBuilder(xamlChanges),
+        new TextSectionBuilder(),
+        new SpanSectionBuilder(),
+        new AppearanceSectionBuilder(),
+        new TransformSectionBuilder(),
+        new InteractionSectionBuilder(),
+        new AccessibilitySectionBuilder(),
+        new ControlSectionBuilder(),
+        new CustomPropertiesSectionBuilder(),
+        new BindingContextSectionBuilder(),
+        new AllPropertiesSectionBuilder(),
+    ];
 
     public List<PropertySection> Collect(VisualElement element, Rect? windowBounds)
     {

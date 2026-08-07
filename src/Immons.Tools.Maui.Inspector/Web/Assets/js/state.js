@@ -50,3 +50,4 @@ function cssColor(hex) {
   }
   return hex;
 }
+let currentTemplated = false;

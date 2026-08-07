@@ -26,7 +26,7 @@ internal static class EndpointFactory
             new TreeEndpoint(mainThread, inspectors, treeJson),
             new SelectionEndpoint(mainThread, selectionJson),
             new ToggleEndpoint(mainThread, inspectors, xamlChanges),
-            new ElementEndpoint(mainThread, inspectors, elements, elementJson, commands, structure),
+            new ElementEndpoint(mainThread, inspectors, elements, elementJson, commands, structure, new AutomationIdBinder(elements, inspectors, xamlChanges)),
             new StructureEndpoint(mainThread, InspectorServices.Current.Catalog, structure, inspectors, elements),
             new BroadcastEndpoint(mainThread, inspectors, InspectorServices.Current.Properties),
             new HistoryEndpoint(mainThread, history, commands),

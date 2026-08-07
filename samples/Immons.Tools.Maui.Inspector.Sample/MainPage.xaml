@@ -20,7 +20,7 @@
             <Label
                 x:Name="TitleLabel"
                 Text="MAUI Inspector demo"
-                FontSize="26"
+                FontSize="{StaticResource TitleSize}"
                 FontAttributes="Bold"
                 TextColor="#512BD4"
                 Margin="0,12,0,0" />
@@ -88,6 +88,15 @@
                 <BoxView AutomationId="GreenBoxView" Grid.Column="1" Color="#BAFFC9" CornerRadius="8" Margin="4" />
                 <BoxView AutomationId="BlueBoxView" Grid.Column="2" Color="#BAE1FF" CornerRadius="8" Margin="8,2" />
             </Grid>
+
+            <!-- Data-templated rows: one XAML line, many instances — the AutomationId binder demo. -->
+            <VerticalStackLayout x:Name="FruitList" Spacing="2" BindableLayout.ItemsSource="{Binding Fruits}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Label Text="{Binding Name}" FontSize="13" TextColor="#5B5470" />
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
 
             <Image
                 Source="dotnet_bot.png"

@@ -126,6 +126,8 @@ function openStructureMenu(id, x, y) {
   copyDeep.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); copyElement(id, true); };
   const paste = el('div', 'ctxitem', '⧉ Paste here');
   paste.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); if (copiedElementId != null) pasteElement(id, copiedElementId, copiedForce); };
+  const autoId = el('div', 'ctxitem', '🆔 Unique AutomationId…');
+  autoId.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); openAutoIdDialog(id); };
   const extract = el('div', 'ctxitem', '✂ Extract style…');
   extract.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); openExtractStyle(id); };
   const wrap = el('div', 'ctxitem', '▣ Wrap in…');
@@ -138,7 +140,7 @@ function openStructureMenu(id, x, y) {
   down.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); moveElement(id, 1); };
   const rem = el('div', 'ctxitem danger', '✕ Remove element');
   rem.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); removeElement(id); };
-  structMenu.append(add, copy, copyDeep, paste, extract, wrap, unwrap, up, down, rem);
+  structMenu.append(add, copy, copyDeep, paste, extract, autoId, wrap, unwrap, up, down, rem);
   document.body.appendChild(structMenu);
   const rect = structMenu.getBoundingClientRect();
   structMenu.style.left = Math.min(x, innerWidth - rect.width - 8) + 'px';
@@ -874,4 +876,78 @@ async function openExtractStyle(id) {
   document.body.appendChild(structBack);
   keyInput.focus();
   keyInput.select();
+}
+
+// ---- Unique AutomationId for data-templated items -------------------------------------------
+
+async function openAutoIdDialog(id) {
+  let data;
+  try {
+    data = await (await fetch('/api/element/' + id + '/automationid-candidates')).json();
+  } catch { return; }
+  if (data.error) { alert(data.error); return; }
+  if (!data.candidates.length) { alert('The BindingContext has no simple properties to bind to.'); return; }
+
+  closeCatalog();
+  structBack = el('div', 'modalback');
+  structBack.onclick = (e) => { if (e.target === structBack) closeCatalog(); };
+  const panel = el('div', 'catalogpanel');
+
+  const head = el('div', 'cataloghead');
+  head.appendChild(el('span', 'catalogtitle', 'AutomationId from item data (' + data.count + ' instances)'));
+  const prefix = document.createElement('input');
+  prefix.type = 'text';
+  prefix.className = 'catalogsearch';
+  prefix.value = data.type.toLowerCase();
+  prefix.title = 'Prefix — the id becomes prefix-{value}; empty = raw value';
+  head.appendChild(prefix);
+
+  const list = el('div', 'cataloglist');
+  let picked = null;
+  const rows = [];
+  const renderPreviews = () => {
+    for (const r of rows) {
+      const p = prefix.value.trim();
+      r.previewEl.textContent = '→ ' + r.preview.map(v => (p ? p + '-' : '') + v).join(', ')
+        + (data.count > r.preview.length ? ', …' : '')
+        + (r.unique ? '' : '   ⚠ not unique across instances');
+    }
+  };
+  prefix.oninput = renderPreviews;
+
+  for (const candidate of data.candidates) {
+    const row = el('label', 'catalogrow extractrow');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'autoidprop';
+    radio.onchange = () => { picked = candidate.name; };
+    row.appendChild(radio);
+    row.appendChild(el('div', 'catalogname', candidate.name + (candidate.unique ? '' : ' ⚠')));
+    const previewEl = el('div', 'catalogdesc', '');
+    row.appendChild(previewEl);
+    rows.push({ preview: candidate.preview, previewEl: previewEl, unique: candidate.unique });
+    list.appendChild(row);
+  }
+  renderPreviews();
+
+  const foot = el('div', 'cataloghead');
+  const go = document.createElement('button');
+  go.textContent = 'Bind AutomationId';
+  go.onclick = async () => {
+    if (!picked) { alert('Pick a property.'); return; }
+    const p = prefix.value.trim();
+    const r = await (await fetch('/api/element/' + id + '/automationid-bind', {
+      method: 'POST',
+      body: JSON.stringify({ path: picked, format: p ? p + '-{0}' : '' }),
+    })).json();
+    if (!r.ok) { alert('Bind failed: ' + (r.error || 'unknown error')); return; }
+    closeCatalog();
+    await refreshAll(true);
+    if (selectedId != null) await loadProps(selectedId, true);
+  };
+  foot.appendChild(go);
+
+  panel.append(head, list, foot);
+  structBack.appendChild(panel);
+  document.body.appendChild(structBack);
 }
