@@ -81,7 +81,7 @@ function toggleMirror() {
   document.getElementById('mirrorBtn').classList.toggle('active', on);
   if (on) {
     const img = document.getElementById('mirrorimg');
-    const tick = () => { img.src = '/api/screenshot?t=' + Date.now(); };
+    const tick = () => { img.src = (window.apiBase || '') + '/api/screenshot?t=' + Date.now(); };
     tick();
     mirrorTimer = setInterval(tick, 800);
   } else if (mirrorTimer) {
@@ -90,14 +90,45 @@ function toggleMirror() {
   }
 }
 
-// Click on the mirror selects the element under the cursor (window-dp coordinates).
-document.getElementById('mirrorimg').addEventListener('click', (e) => {
+// Click on the mirror: with Select mode on it selects the element under the cursor;
+// with it off the tap is forwarded into the app itself (window-dp coordinates) and the
+// mirror takes keyboard focus, so typing reaches the app's focused text input too.
+const mirrorImgEl = document.getElementById('mirrorimg');
+mirrorImgEl.tabIndex = 0;
+mirrorImgEl.addEventListener('click', (e) => {
   if (!windowDp) return;
   // mirrorPointToDp (structure.js) is rotation-aware — the axes swap when the
   // screenshot's orientation disagrees with the last-known window size.
   const [x, y] = mirrorPointToDp(e);
-  fetch('/api/select-at', { method: 'POST', body: JSON.stringify({ x: x, y: y }) });
+  const route = selectMode ? '/api/select-at' : '/api/tap';
+  fetch(route, { method: 'POST', body: JSON.stringify({ x: x, y: y }) });
 });
+
+// Keyboard pass-through (Select off + mirror focused): characters and editing keys go to
+// the app's focused Entry/Editor; Escape gives the keyboard back to the inspector.
+const mirrorEditKeys = ['Backspace', 'Delete', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+mirrorImgEl.addEventListener('keydown', (e) => {
+  if (selectMode) return;
+  if (e.key === 'Escape') { mirrorImgEl.blur(); return; }
+  let payload = null;
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) payload = { text: e.key };
+  else if (mirrorEditKeys.includes(e.key)) payload = { key: e.key };
+  if (!payload) return;
+  e.preventDefault();
+  e.stopPropagation();
+  fetch('/api/key', { method: 'POST', body: JSON.stringify(payload) });
+});
+mirrorImgEl.addEventListener('paste', (e) => {
+  if (selectMode) return;
+  const text = (e.clipboardData || window.clipboardData)?.getData('text');
+  if (!text) return;
+  e.preventDefault();
+  e.stopPropagation();
+  fetch('/api/key', { method: 'POST', body: JSON.stringify({ text: text }) });
+});
+
+// The mirror is the heart of the inspector — have it running from the first paint.
+toggleMirror();
 
 async function clearHl() {
   compareId = null;

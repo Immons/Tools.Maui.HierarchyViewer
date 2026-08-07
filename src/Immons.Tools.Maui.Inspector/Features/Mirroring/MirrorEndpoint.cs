@@ -16,6 +16,28 @@ internal sealed class MirrorEndpoint(
             return true;
         }
 
+        if (method == HttpVerbs.Post && path == ApiRoutes.Mirror.Tap)
+        {
+            var node = await RequestBody.ReadJson(context).ConfigureAwait(false);
+            var x = node?["x"]?.GetValue<double>() ?? 0;
+            var y = node?["y"]?.GetValue<double>() ?? 0;
+            var ok = await mainThread.RunAsync(() =>
+                inspectors.Current?.RemoteTapAt(new Point(x, y)) ?? false).ConfigureAwait(false);
+            await HttpResponse.WriteOk(context, ok).ConfigureAwait(false);
+            return true;
+        }
+
+        if (method == HttpVerbs.Post && path == ApiRoutes.Mirror.Key)
+        {
+            var node = await RequestBody.ReadJson(context).ConfigureAwait(false);
+            var text = node?["text"]?.GetValue<string>();
+            var keyName = node?["key"]?.GetValue<string>();
+            var ok = await mainThread.RunAsync(() =>
+                inspectors.Current?.RemoteKey(text, keyName) ?? false).ConfigureAwait(false);
+            await HttpResponse.WriteOk(context, ok).ConfigureAwait(false);
+            return true;
+        }
+
         if (method == HttpVerbs.Post && path == ApiRoutes.Mirror.SelectAt)
         {
             var node = await RequestBody.ReadJson(context).ConfigureAwait(false);

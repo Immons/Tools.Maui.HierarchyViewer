@@ -52,9 +52,27 @@ internal sealed class GridDefinitionsSectionBuilder(IXamlChangeLog xamlChanges) 
     void AddDefinitionRow(PropertySection s, Grid grid, bool rows, int index)
     {
         var definition = rows ? (BindableObject)grid.RowDefinitions[index] : grid.ColumnDefinitions[index];
+        var attribute = rows ? "Height" : "Width";
         var editor = new PropertyEditor(EditorKind.Text, null, text =>
         {
-            if (!GridLengthText.TryParse(text, out var length))
+            // "{OnIdiom …}" / "{OnPlatform …}" from the per-device editor: this device's
+            // entry applies live, the whole expression goes to XAML and the ⋔ badge.
+            var live = text;
+            var isExpression = DeviceValueExpressionParser.TryResolve(text, out var deviceValue);
+            if (isExpression)
+            {
+                if (deviceValue == null)
+                {
+                    // No entry for this device — a XAML-only edit, but the composed
+                    // shorthand attribute must still be re-recorded.
+                    InspectorServices.Current.Expressions.Record(definition, attribute, text.Trim());
+                    AfterDefinitionsChanged(grid, rows);
+                    return true;
+                }
+                live = deviceValue;
+            }
+
+            if (!GridLengthText.TryParse(live, out var length))
                 return false;
             if (rows)
             {
@@ -68,17 +86,71 @@ internal sealed class GridDefinitionsSectionBuilder(IXamlChangeLog xamlChanges) 
                     return false;
                 grid.ColumnDefinitions[index].Width = length;
             }
+            InspectorServices.Current.Expressions.Record(definition, attribute, isExpression ? text.Trim() : null);
             AfterDefinitionsChanged(grid, rows);
             return true;
         })
         {
             // Element-form <RowDefinition/> tags carry their own source info — patch them directly.
             XamlTarget = definition,
-            XamlAttribute = rows ? "Height" : "Width",
+            XamlAttribute = attribute,
         };
 
         var current = rows ? grid.RowDefinitions[index].Height : grid.ColumnDefinitions[index].Width;
-        s.Rows.Add(new PropertyRow(rows ? $"Row {index}" : $"Column {index}", GridLengthText.Format(current), null, editor));
+        s.Rows.Add(new PropertyRow(rows ? $"Row {index}" : $"Column {index}", GridLengthText.Format(current), null, editor,
+            DeviceExpression: InspectorServices.Current.Expressions.Find(definition, attribute)));
+    }
+
+    /// <summary>
+    /// "{OnIdiom Default='*,3*,*', Phone='0,*,0'}" from per-definition expressions: for every
+    /// idiom/platform key used anywhere, the full definitions list is joined — expression-free
+    /// definitions contribute their live value. Null when the expressions mix extension types.
+    /// </summary>
+    static string? ComposeDeviceExpression(IReadOnlyList<string> liveValues, IReadOnlyList<string?> expressions)
+    {
+        string? extension = null;
+        var parsed = new List<Dictionary<string, string>?>();
+        foreach (var expression in expressions)
+        {
+            if (expression == null)
+            {
+                parsed.Add(null);
+                continue;
+            }
+            if (!DeviceValueExpressionParser.TryParseEntries(expression, out var kind, out var entries))
+                return null;
+            if (extension != null && extension != kind)
+                return null; // OnIdiom and OnPlatform mixed across definitions
+            extension = kind;
+            parsed.Add(entries);
+        }
+        if (extension == null)
+            return null;
+
+        var keys = new List<string>();
+        foreach (var entries in parsed)
+        {
+            foreach (var key in entries?.Keys ?? Enumerable.Empty<string>())
+            {
+                if (!key.Equals("Default", StringComparison.OrdinalIgnoreCase)
+                    && !keys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                    keys.Add(key);
+            }
+        }
+
+        string JoinFor(string? key) => string.Join(",", liveValues.Select((live, i) =>
+        {
+            var entries = parsed[i];
+            if (entries == null)
+                return live;
+            if (key != null && entries.TryGetValue(key, out var forKey))
+                return forKey;
+            return entries.TryGetValue("Default", out var fallback) ? fallback : live;
+        }));
+
+        var parts = new List<string> { $"Default='{JoinFor(null)}'" };
+        parts.AddRange(keys.Select(key => $"{key}='{JoinFor(key)}'"));
+        return "{" + extension + " " + string.Join(", ", parts) + "}";
     }
 
     void AfterDefinitionsChanged(Grid grid, bool rows)
@@ -104,9 +176,22 @@ internal sealed class GridDefinitionsSectionBuilder(IXamlChangeLog xamlChanges) 
                 return;
 
             var attribute = rows ? "RowDefinitions" : "ColumnDefinitions";
-            var value = rows
-                ? string.Join(",", grid.RowDefinitions.Select(d => GridLengthText.Format(d.Height)))
-                : string.Join(",", grid.ColumnDefinitions.Select(d => GridLengthText.Format(d.Width)));
+            var lengthAttribute = rows ? "Height" : "Width";
+            var definitions = rows
+                ? grid.RowDefinitions.Cast<BindableObject>().ToList()
+                : grid.ColumnDefinitions.Cast<BindableObject>().ToList();
+            var liveValues = rows
+                ? grid.RowDefinitions.Select(d => GridLengthText.Format(d.Height)).ToList()
+                : grid.ColumnDefinitions.Select(d => GridLengthText.Format(d.Width)).ToList();
+            var expressions = definitions
+                .Select(d => InspectorServices.Current.Expressions.Find(d, lengthAttribute))
+                .ToList();
+
+            // A per-definition "{OnIdiom …}" cannot live inside the shorthand string — the
+            // whole attribute becomes one expression with the joined list per idiom instead.
+            var value = expressions.Any(e => e != null)
+                ? ComposeDeviceExpression(liveValues, expressions) ?? string.Join(",", liveValues)
+                : string.Join(",", liveValues);
 
             xamlChanges.Record(grid, attribute, value.Length == 0 ? XamlChangeLog.RemoveMarker : value);
         }

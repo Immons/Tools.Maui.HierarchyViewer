@@ -110,4 +110,6 @@ internal sealed partial class WindowInspector
 
     // Modals share the UIWindow, so Essentials' Screenshot already captures them.
     private partial byte[]? CapturePngPlatform() => null;
+
+    private partial bool InjectTapPlatform(Point windowDp) => false; // semantic fallback applies
 }

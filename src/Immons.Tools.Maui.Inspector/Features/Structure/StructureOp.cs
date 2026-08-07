@@ -25,7 +25,8 @@ internal sealed record StructureOp(
     long Order = 0,
     string? SnippetXml = null,
     Dictionary<string, string>? SnippetXmlns = null,
-    bool DeepCopy = false)
+    bool DeepCopy = false,
+    string? StyleKey = null)
 {
     public const string KindAdd = "add";
     public const string KindRemove = "remove";
@@ -33,6 +34,7 @@ internal sealed record StructureOp(
     public const string KindReparent = "reparent";
     public const string KindWrap = "wrap";
     public const string KindUnwrap = "unwrap";
+    public const string KindStyle = "style";
 
     public string ToJson()
     {
@@ -58,6 +60,7 @@ internal sealed record StructureOp(
             ["order"] = Order,
             ["snippetXml"] = SnippetXml,
             ["deepCopy"] = DeepCopy,
+            ["styleKey"] = StyleKey,
             ["snippetXmlns"] = SnippetXmlns == null
                 ? null
                 : new JsonObject(SnippetXmlns.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)kv.Value))),
@@ -96,7 +99,8 @@ internal sealed record StructureOp(
                 node["snippetXmlns"] is JsonObject xmlnsNode
                     ? xmlnsNode.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value!.GetValue<string>())
                     : null,
-                node["deepCopy"]?.GetValue<bool>() ?? false);
+                node["deepCopy"]?.GetValue<bool>() ?? false,
+                node["styleKey"]?.GetValue<string>());
         }
         catch (JsonException)
         {

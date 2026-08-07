@@ -1,8 +1,11 @@
 // Property panel: sections, editors, layout explorer, filter.
 
 async function loadProps(id, keepScroll) {
+  if (typeof refreshXamlPreview === 'function') refreshXamlPreview();
   const el = document.getElementById('props');
-  const scroll = keepScroll ? el.scrollTop : 0;
+  // Scroll survives selection changes too — comparing the same section across elements
+  // is the common flow; the browser clamps when the new list is shorter.
+  const scroll = el.scrollTop;
   const r = await fetch('/api/element/' + id);
   if (!r.ok) {
     const msg = r.status === 404
@@ -153,6 +156,17 @@ function renderPropRow(id, section, row) {
     input.onchange = () => apply(id, section, row.name, input.value, input);
     // Type-ahead over the resources that fit this property: "{StaticResource Key}".
     if (row.resources && row.resources.length) {
+      const pick = document.createElement('button');
+      pick.className = 'rowbtn';
+      pick.textContent = '⌄';
+      pick.title = row.resources.length + ' matching resource(s) — click to pick';
+      pick.onclick = (e) => {
+        e.stopPropagation();
+        showSuggestionMenu(input, row.resources, e.clientX, e.clientY);
+      };
+      input.after(pick);
+    }
+    if (row.resources && row.resources.length) {
       const listId = 'res-' + section.replace(/\W/g, '') + '-' + row.name.replace(/\W/g, '');
       const list = document.createElement('datalist');
       list.id = listId;
@@ -190,6 +204,14 @@ function renderPropRow(id, section, row) {
     bind.textContent = '⛓︎ ' + row.binding;
     bind.title = 'Value comes from a data binding. Literal edits apply at runtime only (not written to XAML); type {Binding …} to change the binding itself.';
     badges.appendChild(bind);
+  }
+
+  if (row.note) {
+    const note = document.createElement('span');
+    note.className = 'bind';
+    note.textContent = '🖌 ' + row.note;
+    note.title = 'Where this value comes from. Editing it here changes the shared instance; set {StaticResource …} to point at a different resource.';
+    badges.appendChild(note);
   }
 
   if (row.clearable) {
@@ -355,4 +377,33 @@ async function apply(id, section, name, value, control, refresh) {
     await refreshAll(true);
   if (data.ok && !document.getElementById('histpanel').hidden)
     await loadHistory();
+}
+
+// Small popup listing the resource suggestions for a property editor.
+let suggestionMenu = null;
+
+function showSuggestionMenu(input, suggestions, x, y) {
+  closeSuggestionMenu();
+  suggestionMenu = document.createElement('div');
+  suggestionMenu.className = 'ctxmenu';
+  for (const suggestion of suggestions.slice(0, 30)) {
+    const item = document.createElement('div');
+    item.className = 'ctxitem';
+    item.textContent = suggestion;
+    item.onclick = () => {
+      input.value = suggestion;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      closeSuggestionMenu();
+    };
+    suggestionMenu.appendChild(item);
+  }
+  document.body.appendChild(suggestionMenu);
+  const rect = suggestionMenu.getBoundingClientRect();
+  suggestionMenu.style.left = Math.min(x, innerWidth - rect.width - 8) + 'px';
+  suggestionMenu.style.top = Math.min(y, innerHeight - rect.height - 8) + 'px';
+  setTimeout(() => document.addEventListener('click', closeSuggestionMenu, { once: true }), 0);
+}
+
+function closeSuggestionMenu() {
+  if (suggestionMenu) { suggestionMenu.remove(); suggestionMenu = null; }
 }

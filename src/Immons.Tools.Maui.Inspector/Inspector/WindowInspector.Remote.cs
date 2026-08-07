@@ -37,6 +37,108 @@ internal sealed partial class WindowInspector : IWindowInspector
         return true;
     }
 
+    /// <summary>
+    /// Mirror click with Select mode off: the tap goes to the app, not the inspector.
+    /// Android injects a real touch; elsewhere the fallback triggers the tapped element's
+    /// own handlers (gesture recognizers, buttons, toggles) at the MAUI level.
+    /// </summary>
+    public bool RemoteTapAt(Point windowPoint)
+    {
+        if (InjectTapPlatform(windowPoint))
+            return true;
+
+        var hit = HitTester.HitTest(RootElements(), windowPoint, GetRectInWindow);
+        for (Element? current = hit; current != null; current = current.Parent)
+        {
+            if (SemanticTap.TryInvoke(current))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Keyboard pass-through for the mirror: characters and editing keys go to the focused
+    /// Entry/Editor/SearchBar at its cursor position. False when nothing editable has focus.
+    /// </summary>
+    public bool RemoteKey(string? text, string? key)
+    {
+        if (FindFocusedInput() is not { } input)
+            return false;
+
+        var textInput = (Microsoft.Maui.ITextInput)input;
+        var current = input.Text ?? "";
+        var cursor = Math.Clamp(textInput.CursorPosition, 0, current.Length);
+
+        switch (key)
+        {
+            case "Backspace":
+                if (cursor > 0)
+                {
+                    input.Text = current.Remove(cursor - 1, 1);
+                    textInput.CursorPosition = cursor - 1;
+                }
+                return true;
+            case "Delete":
+                if (cursor < current.Length)
+                    input.Text = current.Remove(cursor, 1);
+                textInput.CursorPosition = Math.Min(cursor, (input.Text ?? "").Length);
+                return true;
+            case "Enter":
+                if (input is Editor)
+                {
+                    input.Text = current.Insert(cursor, "\n");
+                    textInput.CursorPosition = cursor + 1;
+                    return true;
+                }
+                try
+                {
+                    input.GetType().GetMethod("SendCompleted",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.Invoke(input, null);
+                }
+                catch
+                {
+                    // Completed stays unraised — the text itself is already in place
+                }
+                return true;
+            case "ArrowLeft":
+                textInput.CursorPosition = Math.Max(0, cursor - 1);
+                return true;
+            case "ArrowRight":
+                textInput.CursorPosition = Math.Min(current.Length, cursor + 1);
+                return true;
+            case "Home":
+                textInput.CursorPosition = 0;
+                return true;
+            case "End":
+                textInput.CursorPosition = current.Length;
+                return true;
+        }
+
+        if (string.IsNullOrEmpty(text))
+            return false;
+
+        input.Text = current.Insert(cursor, text);
+        textInput.CursorPosition = cursor + text.Length;
+        return true;
+    }
+
+    InputView? FindFocusedInput()
+    {
+        InputView? found = null;
+
+        void Walk(VisualElement element)
+        {
+            if (element is InputView { IsFocused: true } input)
+                found = input;
+            foreach (var child in Features.VisualTree.VisualTreeWalker.GetVisualChildren(element))
+                Walk(child);
+        }
+
+        foreach (var root in RootElements())
+            Walk(root);
+        return found;
+    }
+
     /// <summary>Selection driven from the web client: highlights on the device without opening the panel.</summary>
     public void RemoteSelect(VisualElement element)
     {

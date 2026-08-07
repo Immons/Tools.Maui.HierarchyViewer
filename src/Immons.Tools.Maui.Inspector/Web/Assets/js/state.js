@@ -1,3 +1,12 @@
+// Remote inspection: when another device is picked in the header, every relative
+// /api call is redirected to that app (CORS is open on the inspector server).
+window.apiBase = '';
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (url, opts) =>
+  (typeof url === 'string' && url.startsWith('/') && window.apiBase)
+    ? nativeFetch(window.apiBase + url, opts)
+    : nativeFetch(url, opts);
+
 // Shared client state, read/written by the other modules.
 let selectedId = null;
 let compareId = null;

@@ -194,4 +194,6 @@ internal sealed partial class WindowInspector
 
     // Modals render inside the same XAML root, Essentials' Screenshot captures them.
     private partial byte[]? CapturePngPlatform() => null;
+
+    private partial bool InjectTapPlatform(Point windowDp) => false; // semantic fallback applies
 }

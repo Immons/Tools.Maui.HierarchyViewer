@@ -9,4 +9,5 @@ internal sealed record PropertyRow(
     Action? Action = null,
     string? Binding = null,
     string? DeviceExpression = null,
-    IReadOnlyList<string>? Resources = null);
+    IReadOnlyList<string>? Resources = null,
+    string? Note = null);

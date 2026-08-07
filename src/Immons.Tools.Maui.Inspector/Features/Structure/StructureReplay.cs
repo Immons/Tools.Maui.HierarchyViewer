@@ -74,6 +74,7 @@ internal sealed class StructureReplay(IElementCatalog catalog, IAddedElements ad
                 StructureOp.KindMove => ReplayMove(op, target, identities),
                 StructureOp.KindReparent => ReplayReparent(op, target, identities),
                 StructureOp.KindWrap => ReplayWrap(op, target),
+                StructureOp.KindStyle => ReplayStyle(op, target),
                 StructureOp.KindUnwrap => ReplayUnwrap(op, target),
                 _ => ReplayRemove(op, target),
             };
@@ -107,6 +108,15 @@ internal sealed class StructureReplay(IElementCatalog catalog, IAddedElements ad
             return false;
 
         added.Register(child, op);
+        return true;
+    }
+
+    /// <summary>Re-applies the extracted values directly — visually identical to the style.</summary>
+    static bool ReplayStyle(StructureOp op, VisualElement element)
+    {
+        if (element.GetType().Name != op.ElementType)
+            return false;
+        AttributeApplier.Apply(element, op.Attributes);
         return true;
     }
 

@@ -32,7 +32,7 @@ internal static class AttributeApplier
         }
     }
 
-    static EditorKind KindOf(Type type)
+    internal static EditorKind KindOf(Type type)
     {
         type = Nullable.GetUnderlyingType(type) ?? type;
         if (type == typeof(bool))

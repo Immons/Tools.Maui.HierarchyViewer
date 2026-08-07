@@ -94,6 +94,7 @@ internal static class ValueFormatter
         SolidColorBrush b => Format(b.Color),
         Brush b => Format(b),
         IShape shape => Format(shape),
+        Shadow shadow => $"Shadow (radius {F(shadow.Radius)})",
         _ when value.GetType().Name == "AppThemeBinding" => FormatAppThemeBinding(value),
         _ => value.ToString() ?? "",
     };

@@ -10,7 +10,23 @@ function saveMirrors() {
 
 async function scanMirrors() {
   const found = [];
-  for (let port = 9295; port <= 9309; port++) {
+  // Default pool + ports of already-known targets + whatever the input names:
+  // "9500" | "9500,9600" | "9400-9420" — custom adb forwards live outside the pool.
+  const ports = new Set();
+  for (let port = 9295; port <= 9309; port++) ports.add(port);
+  for (const t of mirrorTargets) {
+    const m = t.url.match(/:(\d+)$/);
+    if (m) ports.add(parseInt(m[1], 10));
+  }
+  const spec = document.getElementById('mirroraddr').value.trim();
+  for (const part of spec.split(',')) {
+    const range = part.trim().match(/^(\d+)(?:-(\d+))?$/);
+    if (!range) continue;
+    const from = parseInt(range[1], 10);
+    const to = Math.min(parseInt(range[2] || range[1], 10), from + 100);
+    for (let port = from; port <= to; port++) ports.add(port);
+  }
+  for (const port of [...ports].sort()) {
     const base = 'http://' + location.hostname + ':' + port;
     if (base === location.origin) continue;
     try {
@@ -111,7 +127,9 @@ async function mirrorFanOut(path, payload) {
   const active = mirrorTargets.filter(t => t.on && t.up !== false).slice();
   // "All instances" re-applies the edit locally through the same source-identity matcher,
   // so every element created from that XAML line (all DataTemplate rows) is updated.
-  if (allInstances && path !== '/api/mock/rules/scenario')
+  // The same applies while the device picker points elsewhere: the edit went to the remote
+  // app directly, and this portal's own device must not silently fall behind.
+  if ((allInstances || window.apiBase) && path !== '/api/mock/rules/scenario')
     active.push({ url: location.origin, label: 'this device', on: true });
   if (!active.length) return;
   const results = [];

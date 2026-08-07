@@ -136,6 +136,9 @@ internal static class EditorFactory
             return (EditorKind.Enum, Enum.GetNames(type));
         if (typeof(ImageSource).IsAssignableFrom(type))
             return (EditorKind.Image, null);
+        // Shadow has no literal text form — the editor exists for "{StaticResource …}" input.
+        if (type == typeof(Shadow))
+            return (EditorKind.Text, null);
         return null;
     }
 

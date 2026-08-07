@@ -126,6 +126,8 @@ function openStructureMenu(id, x, y) {
   copyDeep.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); copyElement(id, true); };
   const paste = el('div', 'ctxitem', '⧉ Paste here');
   paste.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); if (copiedElementId != null) pasteElement(id, copiedElementId, copiedForce); };
+  const extract = el('div', 'ctxitem', '✂ Extract style…');
+  extract.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); openExtractStyle(id); };
   const wrap = el('div', 'ctxitem', '▣ Wrap in…');
   wrap.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); openCatalog(id, 'wrap'); };
   const unwrap = el('div', 'ctxitem', '⬚ Unwrap');
@@ -136,7 +138,7 @@ function openStructureMenu(id, x, y) {
   down.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); moveElement(id, 1); };
   const rem = el('div', 'ctxitem danger', '✕ Remove element');
   rem.onclick = (e) => { e.stopPropagation(); closeStructureMenu(); removeElement(id); };
-  structMenu.append(add, copy, copyDeep, paste, wrap, unwrap, up, down, rem);
+  structMenu.append(add, copy, copyDeep, paste, extract, wrap, unwrap, up, down, rem);
   document.body.appendChild(structMenu);
   const rect = structMenu.getBoundingClientRect();
   structMenu.style.left = Math.min(x, innerWidth - rect.width - 8) + 'px';
@@ -360,10 +362,13 @@ mirrorImg.addEventListener('dragover', (e) => {
   const [x, y] = mirrorPointToDp(e);
   fetch('/api/structure/drop-target', { method: 'POST', body: JSON.stringify({ x, y }) })
     .then(r => r.json())
-    .then(data => { if (toolboxDragType && data.ok) moveDropHl(data); else hideDropHl(); })
-    .catch(hideDropHl);
+    .then(data => {
+      if (toolboxDragType && data.ok) { moveDropHl(data); showSnapLines(data, [x, y]); }
+      else { hideDropHl(); clearSnapLines(); }
+    })
+    .catch(() => { hideDropHl(); clearSnapLines(); });
 });
-mirrorImg.addEventListener('dragleave', () => { unarmMirror(); hideDropHl(); });
+mirrorImg.addEventListener('dragleave', () => { unarmMirror(); hideDropHl(); clearSnapLines(); });
 
 // The screenshot's orientation drives the maximized layout: landscape → toolbox below the mirror.
 mirrorImg.addEventListener('load', () => {
@@ -384,6 +389,7 @@ const mirrorZoomVal = document.getElementById('mirrorZoomVal');
 
 function applyMirrorTransform() {
   mirrorImg.style.transform = `translate(${mirrorTx}px, ${mirrorTy}px) scale(${mirrorZoom})`;
+  if (typeof renderMirrorAdorners === 'function') renderMirrorAdorners();
   mirrorZoomVal.textContent = Math.round(mirrorZoom * 100) + '%';
   const pct = Math.round(mirrorZoom * 100);
   if (parseInt(mirrorZoomSlider.value, 10) !== pct) mirrorZoomSlider.value = pct;
@@ -456,6 +462,7 @@ mirrorImg.addEventListener('contextmenu', async (e) => {
 mirrorImg.addEventListener('drop', async (e) => {
   unarmMirror();
   hideDropHl();
+  clearSnapLines();
   if (!toolboxDragType || !windowDp) return;
   e.preventDefault();
   const [x, y] = mirrorPointToDp(e);
@@ -567,4 +574,304 @@ async function reparentElement(id, parentId, siblingId, before) {
   if (!data.ok) { alert('Move failed: ' + (data.error || 'unknown error')); return; }
   await refreshAll(true);
   refreshHistoryIfOpen();
+}
+
+// ---- mirror adorners: alignment pins + visual grid designer ---------------------------------
+
+let gridInfo = null;
+let gridInfoForId = null;
+
+function dpToView(x, y) {
+  const dp = effectiveWindowDp();
+  const rect = mirrorImg.getBoundingClientRect();
+  const view = document.getElementById('mirrorview').getBoundingClientRect();
+  return [rect.left - view.left + x / dp[0] * rect.width,
+          rect.top - view.top + y / dp[1] * rect.height];
+}
+
+function dpScale() {
+  const dp = effectiveWindowDp();
+  const rect = mirrorImg.getBoundingClientRect();
+  return [rect.width / dp[0], rect.height / dp[1]];
+}
+
+function adornerHost() {
+  let host = document.getElementById('adorners');
+  if (!host) {
+    host = el('div');
+    host.id = 'adorners';
+    document.getElementById('mirrorview').appendChild(host);
+  }
+  return host;
+}
+
+async function renderMirrorAdorners() {
+  const panel = document.getElementById('mirrorpanel');
+  const host = adornerHost();
+  host.innerHTML = '';
+  const meta = window.selMeta;
+  if (panel.hidden || !meta || meta.id == null || !meta.rect || !windowDp) return;
+
+  renderAlignmentPins(host, meta);
+  await renderGridDesigner(host, meta);
+}
+
+// VS-style pins: left+right = Fill, one side = Start/End, none = Center.
+function renderAlignmentPins(host, meta) {
+  const [x, y] = dpToView(meta.rect.x, meta.rect.y);
+  const [sx, sy] = dpScale();
+  const w = meta.rect.w * sx, h = meta.rect.h * sy;
+
+  const engagedH = meta.h === 'Fill' ? 'LR' : meta.h === 'Start' ? 'L' : meta.h === 'End' ? 'R' : '';
+  const engagedV = meta.v === 'Fill' ? 'TB' : meta.v === 'Start' ? 'T' : meta.v === 'End' ? 'B' : '';
+
+  const pins = [
+    { key: 'L', left: x - 7, top: y + h / 2 - 5, axis: 'h' },
+    { key: 'R', left: x + w - 3, top: y + h / 2 - 5, axis: 'h' },
+    { key: 'T', left: x + w / 2 - 5, top: y - 7, axis: 'v' },
+    { key: 'B', left: x + w / 2 - 5, top: y + h - 3, axis: 'v' },
+  ];
+  for (const pin of pins) {
+    const engaged = (pin.axis === 'h' ? engagedH : engagedV).includes(pin.key);
+    const dot = el('div', 'alignpin' + (engaged ? ' on' : ''));
+    dot.style.left = pin.left + 'px';
+    dot.style.top = pin.top + 'px';
+    dot.title = 'Alignment pin — click to anchor/release this edge';
+    dot.onclick = (e) => {
+      e.stopPropagation();
+      togglePin(pin.axis, pin.key, pin.axis === 'h' ? engagedH : engagedV);
+    };
+    host.appendChild(dot);
+  }
+}
+
+async function togglePin(axis, key, engaged) {
+  const next = engaged.includes(key) ? engaged.replace(key, '') : engaged + key;
+  const both = axis === 'h' ? 'LR' : 'TB';
+  const startKey = axis === 'h' ? 'L' : 'T';
+  let value;
+  if (next.includes(both[0]) && next.includes(both[1])) value = 'Fill';
+  else if (next.includes(startKey)) value = 'Start';
+  else if (next.length) value = 'End';
+  else value = 'Center';
+
+  await fetch('/api/element/' + window.selMeta.id + '/property', {
+    method: 'POST',
+    body: JSON.stringify({ section: 'Layout', name: axis === 'h' ? 'HorizontalOptions' : 'VerticalOptions', value }),
+  });
+  if (selectedId != null) loadProps(selectedId, true);
+}
+
+async function renderGridDesigner(host, meta) {
+  if (gridInfoForId !== meta.id) {
+    gridInfoForId = meta.id;
+    try {
+      gridInfo = await (await fetch('/api/structure/grid-info', {
+        method: 'POST', body: JSON.stringify({ id: meta.id }),
+      })).json();
+    } catch { gridInfo = { ok: false }; }
+  }
+  if (!gridInfo || !gridInfo.ok) return;
+
+  const g = gridInfo;
+  const [sx, sy] = dpScale();
+  const [gx, gy] = dpToView(g.x, g.y);
+  const gw = g.w * sx, gh = g.h * sy;
+
+  const frame = el('div', 'gridframe');
+  frame.style.left = gx + 'px';
+  frame.style.top = gy + 'px';
+  frame.style.width = gw + 'px';
+  frame.style.height = gh + 'px';
+  host.appendChild(frame);
+
+  const makeLine = (vertical, edgeDp, trackIndex, defs, section) => {
+    const line = el('div', vertical ? 'gridline v' : 'gridline h');
+    if (vertical) {
+      line.style.left = (edgeDp - g.x) * sx - 2 + 'px';
+      line.style.top = '0px';
+      line.style.height = gh + 'px';
+    } else {
+      line.style.top = (edgeDp - g.y) * sy - 2 + 'px';
+      line.style.left = '0px';
+      line.style.width = gw + 'px';
+    }
+    line.title = `${section} ${trackIndex}: ${defs[trackIndex]} — drag to resize (sets absolute dp)`;
+
+    line.addEventListener('pointerdown', (down) => {
+      down.preventDefault();
+      down.stopPropagation();
+      line.setPointerCapture(down.pointerId);
+      const start = vertical ? down.clientX : down.clientY;
+      const move = (ev) => {
+        const delta = (vertical ? ev.clientX : ev.clientY) - start;
+        line.style.transform = vertical ? `translateX(${delta}px)` : `translateY(${delta}px)`;
+      };
+      const up = async (ev) => {
+        line.releasePointerCapture(down.pointerId);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        const deltaDp = ((vertical ? ev.clientX : ev.clientY) - start) / (vertical ? sx : sy);
+        const prevEdge = vertical ? g.colEdges[trackIndex] : g.rowEdges[trackIndex];
+        const size = Math.max(4, Math.round(edgeDp + deltaDp - prevEdge));
+        await fetch('/api/element/' + meta.id + '/property', {
+          method: 'POST',
+          body: JSON.stringify({ section, name: `${section === 'Rows' ? 'Row' : 'Column'} ${trackIndex}`, value: String(size) }),
+        });
+        gridInfoForId = null; // re-fetch geometry
+        if (selectedId != null) loadProps(selectedId, true);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    frame.appendChild(line);
+  };
+
+  for (let i = 1; i < g.rowEdges.length - 1; i++) makeLine(false, g.rowEdges[i], i - 1, g.rows, 'Rows');
+  for (let i = 1; i < g.colEdges.length - 1; i++) makeLine(true, g.colEdges[i], i - 1, g.cols, 'Columns');
+
+  const addBar = el('div', 'gridaddbar');
+  const addRow = el('button', '', '+row');
+  addRow.title = 'Add a row (Auto)';
+  addRow.onclick = () => runGridAction(meta.id, 'Rows', '＋ Add row (Auto)');
+  const addCol = el('button', '', '+col');
+  addCol.title = 'Add a column (Auto)';
+  addCol.onclick = () => runGridAction(meta.id, 'Columns', '＋ Add column (Auto)');
+  addBar.append(addRow, addCol);
+  frame.appendChild(addBar);
+}
+
+async function runGridAction(id, section, label) {
+  await fetch('/api/element/' + id + '/action', {
+    method: 'POST', body: JSON.stringify({ section, name: label }),
+  });
+  gridInfoForId = null;
+  await refreshAll(true);
+}
+
+mirrorImg.addEventListener('load', () => { if (typeof renderMirrorAdorners === 'function') renderMirrorAdorners(); });
+
+// ---- snap lines while dragging from the toolbox ---------------------------------------------
+
+function showSnapLines(data, cursorDp) {
+  clearSnapLines();
+  if (!data.children || !data.children.length) return;
+  const rect = mirrorImg.getBoundingClientRect();
+  const dp = effectiveWindowDp();
+  const threshold = 6;
+
+  const xs = [], ys = [];
+  for (const c of data.children) {
+    xs.push(c.x, c.x + c.w, c.x + c.w / 2);
+    ys.push(c.y, c.y + c.h, c.y + c.h / 2);
+  }
+  const nearest = (arr, v) => arr.reduce((best, e) =>
+    Math.abs(e - v) < Math.abs(best - v) ? e : best, arr[0]);
+
+  const host = document.body;
+  const nx = nearest(xs, cursorDp[0]);
+  if (Math.abs(nx - cursorDp[0]) <= threshold) {
+    const line = el('div', 'snapline v');
+    line.style.left = rect.left + nx / dp[0] * rect.width + 'px';
+    line.style.top = rect.top + 'px';
+    line.style.height = rect.height + 'px';
+    host.appendChild(line);
+  }
+  const ny = nearest(ys, cursorDp[1]);
+  if (Math.abs(ny - cursorDp[1]) <= threshold) {
+    const line = el('div', 'snapline h');
+    line.style.top = rect.top + ny / dp[1] * rect.height + 'px';
+    line.style.left = rect.left + 'px';
+    line.style.width = rect.width + 'px';
+    host.appendChild(line);
+  }
+}
+
+function clearSnapLines() {
+  document.querySelectorAll('.snapline').forEach(l => l.remove());
+}
+
+// ---- XAML preview of the selection ----------------------------------------------------------
+
+async function toggleXamlPreview() {
+  const pre = document.getElementById('xamlpre');
+  const on = pre.hidden;
+  pre.hidden = !on;
+  document.getElementById('xamlPreviewBtn').classList.toggle('active', on);
+  if (on) refreshXamlPreview();
+}
+
+async function refreshXamlPreview() {
+  const pre = document.getElementById('xamlpre');
+  if (pre.hidden) return;
+  if (selectedId == null) { pre.textContent = '(no selection)'; return; }
+  try {
+    pre.textContent = await (await fetch('/api/element/' + selectedId + '/xaml')).text();
+  } catch {
+    pre.textContent = '(unavailable)';
+  }
+}
+
+// ---- Extract style: property picker dialog --------------------------------------------------
+
+async function openExtractStyle(id) {
+  let data;
+  try {
+    data = await (await fetch('/api/element/' + id + '/style-candidates')).json();
+  } catch { return; }
+  if (!data.candidates.length) { alert('No local property values to extract on this element.'); return; }
+
+  closeCatalog();
+  structBack = el('div', 'modalback');
+  structBack.onclick = (e) => { if (e.target === structBack) closeCatalog(); };
+  const panel = el('div', 'catalogpanel');
+
+  const head = el('div', 'cataloghead');
+  head.appendChild(el('span', 'catalogtitle', 'Extract style'));
+  const keyInput = document.createElement('input');
+  keyInput.type = 'text';
+  keyInput.className = 'catalogsearch';
+  keyInput.value = data.type + 'Style';
+  keyInput.title = 'Resource key for the new style';
+  head.appendChild(keyInput);
+
+  const list = el('div', 'cataloglist');
+  const checks = [];
+  for (const candidate of data.candidates) {
+    const row = el('label', 'catalogrow extractrow');
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = candidate.checked;
+    check.dataset.name = candidate.name;
+    checks.push(check);
+    row.appendChild(check);
+    const name = el('div', 'catalogname', candidate.name);
+    row.appendChild(name);
+    row.appendChild(el('div', 'catalogdesc', candidate.value));
+    list.appendChild(row);
+  }
+
+  const foot = el('div', 'cataloghead');
+  const go = document.createElement('button');
+  go.textContent = 'Extract';
+  go.onclick = async () => {
+    const props = checks.filter(c => c.checked).map(c => c.dataset.name);
+    const r = await (await fetch('/api/element/' + id + '/structure', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'extract-style', key: keyInput.value.trim(), props }),
+    })).json();
+    if (!r.ok) { alert('Extract failed: ' + (r.error || 'unknown error')); return; }
+    closeCatalog();
+    await refreshAll(true);
+    refreshHistoryIfOpen();
+    if (selectedId != null) await loadProps(selectedId, true);
+    if (!document.getElementById('resback').hidden) loadResources();
+  };
+  foot.appendChild(go);
+
+  panel.append(head, list, foot);
+  structBack.appendChild(panel);
+  document.body.appendChild(structBack);
+  keyInput.focus();
+  keyInput.select();
 }

@@ -23,6 +23,9 @@ internal sealed class XamlChangeLog(IAddedElements added) : IXamlChangeLog
         public const string MoveElement = "move-el";
         public const string WrapElement = "wrap-el";
         public const string UnwrapElement = "unwrap-el";
+        public const string StyleResource = "style-res";
+        public const string StyleSetter = "setter";
+        public const string ResourceValue = "res-val";
     }
 
     internal sealed record Change(
@@ -194,6 +197,60 @@ internal sealed class XamlChangeLog(IAddedElements added) : IXamlChangeLog
         Push($"ins:{op.Id}", new Change(
             0, anchor.Uri, anchor.Line, anchor.Column,
             op.ParentType, op.Id, payload.ToJsonString(), cancel, Ops.InsertElement));
+    }
+
+    public void RecordStyleSetter(string? dictionarySource, string styleKey, string targetType, string property, string value)
+    {
+        if (!_enabled || string.IsNullOrEmpty(dictionarySource))
+            return;
+
+        var payload = new JsonObject
+        {
+            ["key"] = styleKey,
+            ["targetType"] = targetType,
+            ["property"] = property,
+            ["value"] = value,
+        };
+        Push($"setter:{dictionarySource}|{styleKey}|{property}", new Change(
+            0, dictionarySource, 0, 0, "Style", property, payload.ToJsonString(), false, Ops.StyleSetter));
+    }
+
+    public void RecordResourceValue(string? dictionarySource, string key, string value)
+    {
+        if (!_enabled || string.IsNullOrEmpty(dictionarySource))
+            return;
+
+        var payload = new JsonObject
+        {
+            ["key"] = key,
+            ["value"] = value,
+        };
+        Push($"resval:{dictionarySource}|{key}", new Change(
+            0, dictionarySource, 0, 0, "Resource", key, payload.ToJsonString(), false, Ops.ResourceValue));
+    }
+
+    public void RecordStyleResource(StructureOp op) => PushStyleResource(op, cancel: false);
+
+    public void CancelStyleResource(StructureOp op) => PushStyleResource(op, cancel: true);
+
+    void PushStyleResource(StructureOp op, bool cancel)
+    {
+        // Anchored at the PAGE root element — the style lands in <Root.Resources>.
+        if (!_enabled || StructureOp.ParseIdentity(op.ParentIdentity) is not { } anchor)
+            return;
+
+        var payload = new JsonObject { ["xml"] = op.SnippetXml };
+        if (op.SnippetXmlns != null)
+        {
+            var xmlns = new JsonObject();
+            foreach (var (prefix, declaration) in op.SnippetXmlns)
+                xmlns[prefix] = declaration;
+            payload["xmlns"] = xmlns;
+        }
+
+        Push($"sty:{op.Id}", new Change(
+            0, anchor.Uri, anchor.Line, anchor.Column,
+            op.ParentType, op.Id, payload.ToJsonString(), cancel, Ops.StyleResource));
     }
 
     public void RecordElementMove(StructureOp op)

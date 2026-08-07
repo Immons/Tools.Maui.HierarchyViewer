@@ -56,8 +56,14 @@ internal sealed class StyleSectionBuilder : IPropertySectionBuilder
                 Add(s, "BasedOn", available.FirstOrDefault(t => ReferenceEquals(t.Style, basedOn)).Name
                                   ?? basedOn.TargetType?.Name ?? "(style)");
             foreach (var setter in current.Setters)
-                Add(s, $"  {setter.Property?.PropertyName ?? "?"}", FormatValue(setter.Value),
+            {
+                // A setter resolved from "{StaticResource X}" shows as the reference it is
+                // in the XAML, not as the literal it happened to resolve to.
+                var referenceKey = setter.Value != null ? ResourceLookup.KeyOfResolved(el, setter.Value) : null;
+                Add(s, $"  {setter.Property?.PropertyName ?? "?"}",
+                    referenceKey != null ? $"{{StaticResource {referenceKey}}}" : FormatValue(setter.Value),
                     setter.Value switch { Color c => c, SolidColorBrush b => b.Color, _ => null });
+            }
         }
 
         if (el.StyleClass is { Count: > 0 } styleClass)

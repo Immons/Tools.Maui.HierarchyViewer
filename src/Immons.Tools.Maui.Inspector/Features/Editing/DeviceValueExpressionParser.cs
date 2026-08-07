@@ -48,6 +48,30 @@ internal static class DeviceValueExpressionParser
         return true;
     }
 
+    /// <summary>
+    /// Parses the expression into its entries ("Phone" → "0", bare value → "Default").
+    /// False when the text is not an OnPlatform/OnIdiom expression.
+    /// </summary>
+    public static bool TryParseEntries(string text, out string extension, out Dictionary<string, string> entries)
+    {
+        extension = "";
+        entries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var match = Expression.Match(text.Trim());
+        if (!match.Success)
+            return false;
+
+        extension = match.Groups[1].Value;
+        foreach (var pair in SplitPairs(match.Groups[2].Value))
+        {
+            var eq = IndexOfTopLevel(pair, '=');
+            if (eq < 0)
+                entries["Default"] = Unquote(pair);
+            else
+                entries[pair[..eq].Trim()] = Unquote(pair[(eq + 1)..]);
+        }
+        return true;
+    }
+
     static string CurrentPlatformKey()
     {
         var platform = DeviceInfo.Current.Platform;

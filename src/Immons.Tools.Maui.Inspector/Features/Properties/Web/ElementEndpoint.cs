@@ -29,6 +29,46 @@ internal sealed class ElementEndpoint(
             return true;
         }
 
+        if (method == HttpVerbs.Get && verb == "xaml")
+        {
+            var xaml = await mainThread.RunAsync(() =>
+                elements.Find(id) is View view ? Structure.ElementCloner.Preview(view) : null).ConfigureAwait(false);
+            if (xaml == null)
+                await HttpResponse.WriteText(context, 404, "element not found").ConfigureAwait(false);
+            else
+                await HttpResponse.WriteText(context, 200, xaml).ConfigureAwait(false);
+            return true;
+        }
+
+        if (method == HttpVerbs.Get && verb == "style-candidates")
+        {
+            var json = await mainThread.RunAsync(() =>
+            {
+                if (elements.Find(id) is not View view)
+                    return null;
+                var array = new System.Text.Json.Nodes.JsonArray();
+                foreach (var candidate in Structure.StyleExtractor.Candidates(view))
+                {
+                    array.Add(new System.Text.Json.Nodes.JsonObject
+                    {
+                        ["name"] = candidate.Name,
+                        ["value"] = candidate.Value,
+                        ["checked"] = candidate.Preselected,
+                    });
+                }
+                return (string?)new System.Text.Json.Nodes.JsonObject
+                {
+                    ["type"] = view.GetType().Name,
+                    ["candidates"] = array,
+                }.ToJsonString();
+            }).ConfigureAwait(false);
+            if (json == null)
+                await HttpResponse.WriteText(context, 404, "element not found").ConfigureAwait(false);
+            else
+                await HttpResponse.WriteJson(context, json).ConfigureAwait(false);
+            return true;
+        }
+
         if (method == HttpVerbs.Post && verb == "select")
         {
             var ok = await mainThread.RunAsync(() => Select(id)).ConfigureAwait(false);
@@ -74,6 +114,11 @@ internal sealed class ElementEndpoint(
                 "wrap" => structure.Wrap(id, type),
                 "paste" => structure.Paste(id, sourceId, force),
                 "unwrap" => (0, structure.UnwrapElement(id)),
+                "extract-style" => structure.ExtractStyle(id,
+                    node?["key"]?.GetValue<string>() ?? "",
+                    (node?["props"] as System.Text.Json.Nodes.JsonArray)?
+                        .Select(n => n?.GetValue<string>() ?? "").Where(n => n.Length > 0).ToList()
+                        ?? new List<string>()),
                 _ => (0, $"unknown structure op: {op}"),
             }).ConfigureAwait(false);
 

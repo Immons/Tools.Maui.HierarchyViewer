@@ -11,6 +11,7 @@ internal sealed class TreeJsonBuilder(IActiveInspectorProvider inspectors, IElem
         var rootsArray = new JsonArray();
         root["roots"] = rootsArray;
         root["device"] = DeviceDescription();
+        root["port"] = Immons.Tools.Maui.Inspector.Web.Hosting.RemoteServer.Port;
 
         if (inspectors.Current is { } inspector)
         {

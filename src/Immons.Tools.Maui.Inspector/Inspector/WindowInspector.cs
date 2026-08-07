@@ -26,6 +26,20 @@ internal sealed partial class WindowInspector
         _options = options;
         AppForegroundState.Track(window);
         HookModalStack();
+        _window.SizeChanged += OnWindowSizeChanged;
+    }
+
+    /// <summary>
+    /// Rotation rebuilds adaptive layouts and re-lays everything out — a kept selection
+    /// would point at a stale element and paint its pre-rotation box over the new layout.
+    /// </summary>
+    void OnWindowSizeChanged(object? sender, EventArgs e)
+    {
+        if (_selected == null && _compare == null)
+            return;
+        _selected = null;
+        _compare = null;
+        UpdateHighlight();
     }
 
     /// <summary>
@@ -99,6 +113,7 @@ internal sealed partial class WindowInspector
     public void Detach()
     {
         UnhookModalStack();
+        _window.SizeChanged -= OnWindowSizeChanged;
         DetachPlatform();
     }
 
@@ -272,6 +287,9 @@ internal sealed partial class WindowInspector
     // Platform pieces:
     private partial void AttachPlatform();
     private partial void DetachPlatform();
+    /// <summary>True when a real platform touch was injected at the window-dp point.</summary>
+    private partial bool InjectTapPlatform(Point windowDp);
+
     private partial void AddLayersPlatform();
     private partial void RemoveLayersPlatform();
     private partial void SetPanelOffsetPlatform(double xDp, double yDp);

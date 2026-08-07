@@ -18,7 +18,8 @@ internal static class SectionBuilder
     /// Adds a row backed by a public CLR property of the element; the row becomes editable
     /// when the property has a public setter of a supported type.
     /// </summary>
-    public static void AddEditable(PropertySection s, object el, string property, string? label = null)
+    public static void AddEditable(PropertySection s, object el, string property, string? label = null,
+        string? value = null, string? note = null)
     {
         var pi = ReflectionLookup.FindInstanceProperty(el.GetType(), property);
         if (pi == null)
@@ -30,12 +31,28 @@ internal static class SectionBuilder
 
         s.Rows.Add(new PropertyRow(
             label ?? property,
-            ValueFormatter.FormatValue(raw),
+            value ?? ValueFormatter.FormatValue(raw),
             raw as Color,
             EditorFactory.Clr(el, property),
             Binding: BindingDescriptor.Describe(el, property),
-            DeviceExpression: InspectorServices.Current.Expressions.Find(el, property),
-            Resources: SuggestionsFor(el, property, Nullable.GetUnderlyingType(pi.PropertyType) ?? pi.PropertyType)));
+            DeviceExpression: InspectorServices.Current.Expressions.Find(el, property)
+                              ?? SourceDeviceExpression(el, property),
+            Resources: SuggestionsFor(el, property, Nullable.GetUnderlyingType(pi.PropertyType) ?? pi.PropertyType),
+            Note: note));
+    }
+
+    /// <summary>
+    /// XAML-authored "{OnIdiom …}"/"{OnPlatform …}" are resolved at parse time and leave no
+    /// runtime trace — the raw attribute read from the embedded source shows the truth.
+    /// </summary>
+    static string? SourceDeviceExpression(object el, string property)
+    {
+        var text = XamlSourceText.AttributeText(el, property)?.Trim();
+        return text != null
+               && (text.StartsWith("{OnIdiom", StringComparison.Ordinal)
+                   || text.StartsWith("{OnPlatform", StringComparison.Ordinal))
+            ? text
+            : null;
     }
 
     /// <summary>

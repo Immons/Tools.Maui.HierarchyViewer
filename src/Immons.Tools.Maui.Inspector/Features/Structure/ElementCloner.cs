@@ -105,6 +105,24 @@ internal static class ElementCloner
         _ => new List<View>(),
     };
 
+    /// <summary>
+    /// The XAML the serializer would write for this element — shown as a read-only preview.
+    /// Custom controls appear as leaves with their attributes, prefixes resolved inline.
+    /// </summary>
+    public static string Preview(View element)
+    {
+        var described = Describe(element);
+        if (described == null)
+            return $"<!-- {element.GetType().Name}: no parameterless constructor — not serializable -->";
+
+        var xmlns = described.Value.XmlnsMap ?? new Dictionary<string, string>();
+        var tag = TagName(element.GetType(), xmlns);
+        var attributes = new Dictionary<string, string>(described.Value.Attributes);
+        foreach (var (prefix, declaration) in xmlns)
+            attributes[$"xmlns:{prefix}"] = declaration;
+        return RenderXml(tag, attributes, described.Value.ChildrenXml);
+    }
+
     /// <summary>Null when the element's type cannot be recreated (no parameterless ctor).</summary>
     public static CloneResult? Clone(View source, bool deepCustom = false)
     {
@@ -227,6 +245,8 @@ internal static class ElementCloner
         value.Replace("&", "&amp;").Replace("<", "&lt;").Replace("\"", "&quot;");
 
     /// <summary>The XAML attribute form of a property value; null when it has none.</summary>
+    internal static string? XamlAttributeValue(object value) => XamlValue(value);
+
     static string? XamlValue(object value) => value switch
     {
         string s => s,
@@ -242,6 +262,10 @@ internal static class ElementCloner
             _ => "Fill",
         },
         Enum e => e.ToString(),
+        // ShadowTypeConverter's 5-token form: "offsetX offsetY radius color opacity".
+        Shadow { Brush: SolidColorBrush { Color: { } shadowColor } } shadow => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{shadow.Offset.X} {shadow.Offset.Y} {shadow.Radius} {shadowColor.ToArgbHex(true)} {shadow.Opacity}"),
         FileImageSource file => file.File,
         UriImageSource uriSource => uriSource.Uri?.ToString(),
         IConvertible c => c.ToString(CultureInfo.InvariantCulture),

@@ -39,6 +39,8 @@ internal sealed class StructureCommands(
 
     sealed record UndoUnwrapContainer(StructureOp? Op, View Container, VisualElement Parent, int Index, List<View> Children) : Undoable;
 
+    sealed record UndoExtractStyle(StructureOp Op, View Element, Page Page, StyleExtractor.Extraction Extraction) : Undoable;
+
     readonly Dictionary<long, Undoable> _undoables = [];
     readonly Dictionary<long, Undoable> _redoables = [];
     readonly object _gate = new();
@@ -72,7 +74,7 @@ internal sealed class StructureCommands(
         return (0, "no container under the drop point");
     }
 
-    public (Rect Bounds, string Label)? DropTargetAt(Point windowPoint)
+    public (Rect Bounds, string Label, IReadOnlyList<Rect> Children)? DropTargetAt(Point windowPoint)
     {
         if (inspectors.Current is not { } inspector
             || HitTester.HitTest(inspector.Roots, windowPoint, inspector.BoundsOf) is not { } hit)
@@ -80,8 +82,20 @@ internal sealed class StructureCommands(
 
         for (var candidate = hit; candidate != null; candidate = candidate.Parent as VisualElement)
         {
-            if (CanAcceptChild(candidate) && inspector.BoundsOf(candidate) is { } bounds)
-                return (bounds, candidate.GetType().Name);
+            if (!CanAcceptChild(candidate) || inspector.BoundsOf(candidate) is not { } bounds)
+                continue;
+
+            // Sibling rects feed the panel's snap lines while dragging.
+            var children = new List<Rect>();
+            if (candidate is Layout layout)
+            {
+                foreach (var child in layout.Children.Take(60))
+                {
+                    if (child is VisualElement ve && inspector.BoundsOf(ve) is { } childBounds)
+                        children.Add(childBounds);
+                }
+            }
+            return (bounds, candidate.GetType().Name, children);
         }
         return null;
     }
@@ -586,6 +600,38 @@ internal sealed class StructureCommands(
         return null;
     }
 
+    public (int Id, string? Error) ExtractStyle(int elementId, string key, IReadOnlyCollection<string> propertyNames)
+    {
+        if (elements.Find(elementId) is not View element)
+            return (0, "element not found");
+
+        Page? page = null;
+        for (Element? current = element; current != null; current = current.Parent)
+        {
+            if (current is Page p)
+            {
+                page = p;
+                break;
+            }
+        }
+        if (page == null)
+            return (0, "the element is not on a page");
+
+        var (extraction, error) = StyleExtractor.Extract(element, page, key, propertyNames);
+        if (extraction == null)
+            return (0, error);
+
+        var op = StyleExtractor.BuildOp(element, page, key, extraction);
+        InspectorStorage.Current.Structure.Save(op.Id, op.ToJson());
+        new StyleExtractor(xamlChanges).WriteBack(element, extraction, op);
+
+        history.Record(element, "Structure", $"Extract style {key}", "", "(extracted)");
+        RememberUndo(new UndoExtractStyle(op, element, page, extraction));
+
+        inspectors.Current?.RemoteAfterEdit();
+        return (elementId, null);
+    }
+
     /// <summary>True when the candidate sits anywhere inside the element's subtree.</summary>
     static bool IsWithin(Element candidate, VisualElement element)
     {
@@ -854,6 +900,16 @@ internal sealed class StructureCommands(
                 history.Record(renest.Container, "Structure", $"Unwrap {renest.Container.GetType().Name}", "(unwrapped)", "(undone)", canUndo: false);
                 break;
 
+            case UndoExtractStyle extract:
+                foreach (var (property, oldValue) in extract.Extraction.Extracted)
+                    extract.Element.SetValue(property, oldValue);
+                extract.Element.ClearValue(VisualElement.StyleProperty);
+                extract.Page.Resources.Remove(extract.Extraction.Key);
+                InspectorStorage.Current.Structure.Delete(extract.Op.Id);
+                new StyleExtractor(xamlChanges).UndoWriteBack(extract.Element, extract.Extraction, extract.Op);
+                history.Record(extract.Element, "Structure", $"Extract style {extract.Extraction.Key}", "(extracted)", "(undone)", canUndo: false);
+                break;
+
             default:
                 return false;
         }
@@ -990,6 +1046,15 @@ internal sealed class StructureCommands(
                     InspectorStorage.Current.Structure.Save(renest.Op.Id, renest.Op.ToJson());
                     xamlChanges.RecordElementUnwrap(renest.Op);
                 }
+                break;
+
+            case UndoExtractStyle extract:
+                extract.Page.Resources[extract.Extraction.Key] = extract.Extraction.Style;
+                foreach (var (property, _) in extract.Extraction.Extracted)
+                    extract.Element.ClearValue(property);
+                extract.Element.Style = extract.Extraction.Style;
+                InspectorStorage.Current.Structure.Save(extract.Op.Id, extract.Op.ToJson());
+                new StyleExtractor(xamlChanges).WriteBack(extract.Element, extract.Extraction, extract.Op);
                 break;
 
             default:

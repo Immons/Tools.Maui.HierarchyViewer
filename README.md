@@ -18,9 +18,84 @@ in your desktop browser, with an on-device overlay as the fallback when you have
 Everything runs **inside your app**: no IDE integration, no proxy, no certificates.
 
 - **Inspect & edit** the live visual tree — box model, properties, styles, spans, grids, `{Binding}` / `{StaticResource}` / `{OnPlatform}` — with every change written back to your XAML if you want it.
-- **Edit the structure, WYSIWYG-style** — drag controls from a toolbox onto the live mirror, add / remove / reorder / reparent / wrap / unwrap / copy-paste elements with undo & redo, and it all lands in your `.xaml` files as real markup ([details](#structure-editing-wysiwyg)).
+- **Edit the structure, WYSIWYG-style** — drag controls from a toolbox onto the live mirror, add / remove / reorder / reparent / wrap / unwrap / copy-paste elements with undo & redo, and it all lands in your `.xaml` files as real markup ([details](#wysiwyg-editor)).
 - **Intercept HTTP** — record traffic with bodies, mock it with rules and scenarios, record a whole flow and replay it offline, or pause a call at a breakpoint and edit it.
-- **Drive several devices at once** — one panel updates the same app on every connected simulator, emulator or phone.
+- **Design like in a designer** — snap lines, alignment pins, a drag-to-resize grid designer, style extraction, an editable resources browser and a live XAML preview of the selection.
+- **Drive several devices at once** — one panel updates the same app on every connected simulator, emulator or phone, and the header's device picker inspects any of them from a single portal.
+
+## Table of contents
+
+- [Getting started](#getting-started) — packages, two-line setup, manual control
+- [The web panel](#the-web-panel) · [On the device](#on-the-device)
+- [Inspecting](#inspecting) · [Editing properties](#editing-properties)
+- [Styles & resources](#styles--resources) — extract style, the editable Resources popup
+- [WYSIWYG editor](#wysiwyg-editor) — structure editing, toolbox, designer aids
+- [XAML Updater (sync tool)](#xaml-updater-sync-tool) — writing edits back to your sources
+- [Network & HTTP mocking](#network--http-mocking) — recording, mocks, scenarios, offline testing
+- [Multi-device](#multi-device) · [UI tests](#ui-tests-maestro-appium) · [HTTP API](#http-api)
+- [Reference](#reference) — platforms, options, storage, how it works, troubleshooting, limitations
+
+## Getting started
+
+### Packages
+
+| Package | What it is | Install |
+| --- | --- | --- |
+| [`Immons.Tools.Maui.Inspector`](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector) | The inspector itself — add it to your MAUI app. | `dotnet add package Immons.Tools.Maui.Inspector` |
+| [`Immons.Tools.Maui.Inspector.Sync`](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector.Sync) | The **XAML Updater** dotnet tool that writes panel edits back into your `.xaml` files (optional). | `dotnet tool install -g Immons.Tools.Maui.Inspector.Sync` |
+| [`Immons.Tools.Maui.Inspector.Persistency`](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector.Persistency) | SQLite storage backend — worth adding once recorded scenarios grow large (optional). | `dotnet add package Immons.Tools.Maui.Inspector.Persistency` |
+
+```xml
+<!-- Debug-only reference keeps the inspector out of release builds entirely -->
+<PackageReference Include="Immons.Tools.Maui.Inspector" Version="0.9.13" Condition="'$(Configuration)' == 'Debug'" />
+```
+
+Targets `net10.0-ios`, `net10.0-android` and `net10.0-windows` (plus a no-op `net10.0`), MIT licensed.
+
+### Enable the inspector
+
+In `MauiProgram.cs` — ideally only for debug builds:
+
+```csharp
+using Immons.Tools.Maui.Inspector;
+
+var builder = MauiApp.CreateBuilder();
+builder.UseMauiApp<App>();
+
+#if DEBUG
+builder.UseMauiInspector(options =>
+{
+    options.EnableWebServer = true;                        // desktop web panel
+    options.LongPressDuration = TimeSpan.FromMilliseconds(800);
+    // options.WebServerPort = 9295;                       // force a port (default: auto)
+    // options.LongPressTouchCount = 2;                    // avoid clashing with app long-presses
+    // options.ShakeToOpen = true;                         // shake the device to open the overlay
+    // options.MaxCapturedBodyBytes = 4 * 1024 * 1024;     // largest HTTP body kept for the Network view
+});
+#endif
+```
+
+The web server picks a free port from **9295–9309** and prints the URL to the platform console
+and to the panel's Logs view:
+
+```
+[MauiInspector] web inspector listening on http://localhost:9296/ (auto-assigned)
+```
+
+`MauiInspector.WebServerUrl` returns the same URL at runtime (handy for a debug label in your app).
+
+- **iOS simulator** — open that URL on the Mac.
+- **Android emulator** — `adb forward tcp:<port> tcp:<port>` first (the XAML Updater tool does it for you).
+- **Physical devices** — use the device IP (Android needs the `INTERNET` permission, present by default).
+
+### Manual control
+
+```csharp
+MauiInspector.Show();          // open the on-device overlay
+MauiInspector.Hide();
+MauiInspector.Toggle();
+MauiInspector.Inspect(someVisualElement);  // open with a specific element selected
+```
 
 ## The web panel
 
@@ -40,39 +115,26 @@ green on stale data. The **Devices** view lists each target with its address and
 that no longer answer, with one button to drop them (ports are recycled between runs, so stale
 entries accumulate).
 
-The header shows which package build is running (`v0.9.12`) next to the title. The panel also asks
-nuget.org for the newest published version and turns that into `v0.9.12 → 0.9.13 available` when you
+The header shows which package build is running (`v0.9.13`) next to the title. The panel also asks
+nuget.org for the newest published version and turns that into `v0.9.13 → 0.9.14 available` when you
 are behind — a plain GET of a public index, silently skipped when there is no connection.
+
+A **device picker** next to the title points the whole panel — tree, properties, mirror,
+resources, history — at any other running instance it can find (same scan as the Devices view).
+Comparing the tablet and the phone rendition of a screen no longer needs two tabs: pick the other
+device, inspect, pick *This device* to come back.
 
 The tree, the property sheet and the device stay in sync both ways: click an element in the
 browser and it highlights on the device; long-press on the device and the browser follows.
-Property edits apply **live** — and, with the XAML Updater running, they are
-[written back into your XAML sources](#wysiwyg-write-edits-back-to-your-xaml-xaml-updater).
+Single-key shortcuts toggle the modes — **S** Select, **M** Measure, **G** Guides, **P** on-device
+Panel (plus `Ctrl/Cmd+Z` undo, `Ctrl/Cmd+C/V` copy & paste, Delete to remove the selection). The
+properties list keeps its scroll position when the selection changes, so comparing the same
+section across elements doesn't mean scrolling down again. Property edits apply **live** — and,
+with the XAML Updater running, they are
+[written back into your XAML sources](#xaml-updater-sync-tool).
 
-**Network — requests, breakpoints and bodies**
-
-![Network requests](docs/web-network.png)
-
-Every call that goes through `MauiInspectorHttpHandler` is recorded with full request and
-response bodies (click a row to expand). Breakpoints pause matching requests or responses so you
-can edit the body or status and continue — Proxyman-style, but inside the process, so TLS and
-certificate pinning are none of your concern.
-
-**Mocks — rules, scenarios and recording**
-
-![Mock rules and scenarios](docs/web-mocks.png)
-
-Rules match on method + URL pattern (the most specific rule wins) and can replace the request or
-response body, force a status, add a delay, simulate a timeout or a network error, or answer
-completely without the network. Group them into **scenarios** ("premium user", "empty portfolio",
-"force update"), switch the active one from a picker, or hit **⏺ Record**, click through a flow and
-turn the whole request path into a replayable scenario. Rules survive app restarts, so even
-a version check fired on startup is already mocked.
-
-**Other views:** **Logs** streams `ILogger` output, and **Devices** turns one panel into
-multi-device hot reload — every edit, structural action and mock rule is mirrored to the same app
-running on other simulators, emulators or physical devices, matched by XAML source identity
-(so per-idiom / per-platform `DataTemplate`s stay correct).
+The other views are covered in their own chapters: [Network & mocks](#network--http-mocking),
+**Logs** (streams `ILogger` output) and [Devices](#multi-device) for multi-device hot reload.
 
 ## On the device
 
@@ -86,12 +148,94 @@ The on-device panel is feature-matched with the web one: live editors with `⋔`
 per-idiom composer, `✕` clear, `⛓︎`/`⋔︎` badges for bound and per-device values, and a `⋯` row with
 **Guides**, **XAML** write-back, **Perf** and **Slow** toggles.
 
-## Structure editing (WYSIWYG)
+## Inspecting
+
+- **Visual tree** — the whole window, auto-expanded to the selection, with type names, `x:Name`/`StyleId`, text snippets and child counts. Search by type, `@x:Name`, `#AutomationId` or text (spans included); arrow keys walk the tree.
+- **Element picking** — with select mode (⌖) a single tap on the device picks an element; the hit test walks the real MAUI tree (through Shell intermediaries) in paint order.
+- **Box model overlay** — margin (orange), padding (green) and content (blue) fills, dashed alignment guides and a dimensions badge, drawn over the live app.
+- **Property sheet** — grouped sections (Element, Style, Bounds, Layout, Text, Appearance, Transform, Interaction, Accessibility, Control, ViewModel, All properties) with color swatches, the XAML source location, and a per-property filter.
+- **Layout Explorer** — the selected container's children drawn to scale (with `Grid` cells); click a child to select it.
+- **Debug paint (▦ Guides)** — Flutter-style outlines of every visible element, color-cycled by depth.
+- **Measure distances (↔)** — pick a second element and get Figma-style gaps or edge offsets (see [badges](#measure-mode-badges)).
+- **Mirror (📱)** — live device screenshots in the browser; click the image to select the element under the cursor.
+- **Console dump / diff** — the whole tree with bounds, margins, paddings, spacings, sibling gaps, fonts and colors, ready to compare against a Figma design; **Δ Diff** stores a baseline and shows exactly which lines changed.
+- **Accessibility** — editable `SemanticProperties` plus a WCAG contrast check against the effective background.
+- **Performance (⏱)** — live fps / average / worst frame time; **🐢 Slow** runs all animations 5× slower.
+
+### Measure mode badges
+
+After enabling `↔` and picking a second element, distance labels appear on the overlay:
+
+| Badge | Meaning |
+| --- | --- |
+| `W × H` (dark) | Size of the **primary** (first selected) element — not a distance. |
+| `←n→` | Free **horizontal gap** between the two elements (outer spacing). |
+| `↑n↓` | Free **vertical gap** between the two elements (outer spacing). |
+| `L n` | Offset between the **left** edges of primary and compare. |
+| `R n` | Offset between the **right** edges. |
+| `T n` | Offset between the **top** edges. |
+| `B n` | Offset between the **bottom** edges. |
+
+**When which ones show**
+
+- Side-by-side (no X overlap): `←n→` plus `T` / `B` if those edges are not aligned.
+- Stacked (no Y overlap): `↑n↓` plus `L` / `R` if those edges are not aligned.
+- Diagonal (no overlap on either axis): `←n→` and `↑n↓`.
+- Nested / intersecting on both axes: `L` / `R` / `T` / `B` (no outer gap).
+
+Values are in **dp**. Aligned edges (delta ≈ 0) are omitted.
+
+## Editing properties
+
+- **Live editing** — text/number fields, switches and pickers for anything with a public setter: `FontSize`, `Margin`, `Padding`, `Text`, colors (`#RRGGBB`, `#AARRGGBB` or named), `Thickness` (`8`, `8,4`, `8,4,8,4`), enums, `LayoutOptions`, `Keyboard`, `Image.Source`… The highlight re-measures after every change.
+- **Markup extensions** — type `{Binding X}`, `{StaticResource Y}`, `{OnPlatform …}` or your own extension (`{extensions:Translate Key}`) into any editor and it is applied for real; a custom extension that cannot be instantiated is kept as a XAML-only edit instead of landing as literal `{…}` text.
+- **Suggestions** — text editors offer what actually fits the property: registered font aliases for `FontFamily`, and `{StaticResource Key}` type-ahead over the resources whose value matches the property type (colors for `TextColor`, doubles for `FontSize`, strings for `Text`…). The **⋔** button opens a small per-platform / per-idiom form (iOS · Android · WinUI, Phone · Tablet · Desktop); the applied expression is shown next to the value and remembered across app restarts.
+- **Binding-aware** — bound properties show a `⛓ {Binding …}` badge (compiled `x:DataType` bindings included — the path is reconstructed from the `TypedBinding`), and literal edits on them stay runtime-only so the binding expression in your XAML is never overwritten by a constant.
+- **Styles** — the current `Style` resolved to its resource key with all setters listed, and a picker to apply any other reachable style (local values are cleared so the style actually takes effect). See [Styles & resources](#styles--resources) for style extraction and the editable Resources popup.
+- **Shadow** — `＋ Add shadow` with per-part editors, a `Shadow` field that accepts (and suggests) `{StaticResource …}` shadows, and a `🖌 style` badge when the shadow comes from a style. Runtime-created shadows are written to XAML in the converter form (`Shadow="0 4 8 #66000000 0.5"`); XAML-declared `<Shadow>` tags are patched in place.
+- **Spans** — a `Label`'s `FormattedText` expands into per-span sections with add/remove, and can be created from the plain `Text`.
+- **Grid** — editable row/column definitions (`Auto`, `*`, `2*`, `48`) with add/remove — `{OnIdiom …}`/`{OnPlatform …}` accepted per definition (the ⋔ editor works here too) — plus `Grid.Row/Column/RowSpan/ColumnSpan` on children, and the mirror's grid designer for drag-resizing tracks.
+- **ViewModel** — the selected element's `BindingContext` properties, editable for simple types (in-memory only).
+- **Edit history** — every applied edit logged old → new, with one-click undo.
+
+### Custom controls are first-class
+
+Selecting one of your own controls adds a **“{Type} properties”** section listing the bindable
+properties it declares (one section per type in the inheritance chain), with the same editors,
+history, `{Binding}`/`{StaticResource}`/`{OnPlatform}` support and XAML write-back as the
+built-in sections. `ImageSource` properties accept a bundled file name or an absolute URL.
+
+## Styles & resources
+
+### Extract style
+
+Right-click → **✂ Extract style…** turns an element's local property values into a keyed
+`Style` in the page's resources: a dialog proposes a key (`{Type}Style`) and pre-selects the
+style-able values (content-ish ones like `Text` are listed but unchecked). Applying builds the
+style, clears the extracted local values, re-points the element at `{StaticResource key}` —
+live, with undo — and writes the `<Style>` block into `<Page.Resources>` (creating the section
+when missing) with the element's attributes swapped for the resource reference.
+
+### The Resources popup
+
+![Resources popup](docs/resources-popup.png)
+
+The **🎨 Resources** button opens a popup over the panel listing every reachable resource
+dictionary — application, merged files, and the presented pages' own dictionaries — with a
+search box over keys, styles and setters. Colors and brushes get swatches and are editable;
+**scalar resources** (`x:Double`, `x:String`, booleans, `Thickness`, `CornerRadius`) are
+editable too; and each `Style` expands into its setters, editable inline (the style re-applies
+to its live consumers immediately). Every change is also recorded for the XAML Updater, which
+patches the owning dictionary file — located by `x:Key`, no line anchors — or the page file for
+inline page resources. `DynamicResource` consumers update live; `StaticResource` references were
+resolved at inflation time and show the new value after the page is rebuilt.
+
+## WYSIWYG editor
 
 Properties are half the story — the inspector also edits the **structure** of a running page:
 add controls, delete them, reorder, reparent, wrap and unwrap, copy & paste — live on the
 device, recorded in the edit history with full undo/redo, and (with the
-[XAML Updater](#wysiwyg-write-edits-back-to-your-xaml-xaml-updater) running) written back into
+[XAML Updater](#xaml-updater-sync-tool) running) written back into
 your `.xaml` sources as real, compilable markup.
 
 ![Structure editing overview](docs/wysiwyg-overview.png)
@@ -109,7 +253,25 @@ follows the cursor (above/below the neighbouring children in stack layouts).
 The `⛶` button expands the mirror into a full column — tree, mirror and properties side by
 side — and `🗗` docks it back. The **Fit** button, zoom slider (25–300%, or pinch/Ctrl+scroll)
 and drag-to-pan keep big tablet screenshots manageable; clicking, right-clicking and dropping
-all stay accurate at any zoom, pan and device rotation.
+all stay accurate at any zoom, pan and device rotation. The mirror starts automatically when
+the panel opens, and on Android it captures the real GPU frame of **every window** (modal pages
+live in separate dialogs there), so what you see is exactly what the device shows.
+
+With **Select mode off**, clicking the mirror forwards the tap into the app itself — like a
+remote-desktop client. On Android a real touch event is injected (buttons, list rows, entries —
+everything reacts); on the other platforms the tapped element's own handlers are triggered
+(`TapGestureRecognizer`, buttons, switches, checkboxes). Flip Select back on and clicks select
+elements again. Rotating the device clears the selection — adaptive layouts rebuild on rotation,
+so a kept selection would point at a stale element.
+
+### Designer aids
+
+While a toolbox drag is in flight, **snap lines** show how the drop position relates to the
+container's children. The selection gets **alignment pins** reflecting its
+`HorizontalOptions`/`VerticalOptions`, and selecting a `Grid` overlays a **grid designer**:
+drag the row/column lines to resize tracks (written as absolute dp), or use the `+row`/`+col`
+buttons on the mirror. The `</>` button above the properties shows a live **XAML preview** of
+the selection — the exact markup a copy/paste or write-back would produce.
 
 ### The context menu
 
@@ -153,13 +315,6 @@ chain, so repeated undo keeps going deeper instead of re-doing itself. `Ctrl/Cmd
 
 ![Edit history](docs/wysiwyg-history.png)
 
-### Custom controls are first-class
-
-Selecting one of your own controls adds a **“{Type} properties”** section listing the bindable
-properties it declares (one section per type in the inheritance chain), with the same editors,
-history, `{Binding}`/`{StaticResource}`/`{OnPlatform}` support and XAML write-back as the
-built-in sections. `ImageSource` properties accept a bundled file name or an absolute URL.
-
 ### Durability
 
 - With the SQLite storage package, structural edits **survive app restarts**: pending adds
@@ -173,60 +328,72 @@ built-in sections. `ImageSource` properties accept a bundled file name or an abs
   operations are only served to an updater that declares support for them, so an outdated tool
   can never misapply them.
 
-## Getting started
+## XAML Updater (sync tool)
 
-### Packages
+The inspector can act as a real WYSIWYG editor: edits made in the web panel (or on the
+device) are written back into your XAML source files.
 
-| Package | What it is | Install |
-| --- | --- | --- |
-| [`Immons.Tools.Maui.Inspector`](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector) | The inspector itself — add it to your MAUI app. | `dotnet add package Immons.Tools.Maui.Inspector` |
-| [`Immons.Tools.Maui.Inspector.Sync`](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector.Sync) | The **XAML Updater** dotnet tool that writes panel edits back into your `.xaml` files (optional). | `dotnet tool install -g Immons.Tools.Maui.Inspector.Sync` |
-| [`Immons.Tools.Maui.Inspector.Persistency`](https://www.nuget.org/packages/Immons.Tools.Maui.Inspector.Persistency) | SQLite storage backend — worth adding once recorded scenarios grow large (optional). | `dotnet add package Immons.Tools.Maui.Inspector.Persistency` |
+1. In debug builds MAUI records the XAML source location (file + line) of every element —
+   `UseMauiInspector` enables this automatically. The panel shows it above the
+   properties (e.g. `MainPage.xaml:26:14`). **Requires runtime/XamlC inflation** — remove
+   `<MauiXamlInflator>SourceGen</MauiXamlInflator>` from the app project for Debug.
+2. Install the companion tool once, then run it from your app's source folder:
 
-```xml
-<!-- Debug-only reference keeps the inspector out of release builds entirely -->
-<PackageReference Include="Immons.Tools.Maui.Inspector" Version="0.9.12" Condition="'$(Configuration)' == 'Debug'" />
-```
+   ```bash
+   dotnet tool install -g Immons.Tools.Maui.Inspector.Sync   # once
+   cd path/to/your/app
+   maui-inspector-sync
+   ```
 
-Targets `net10.0-ios`, `net10.0-android` and `net10.0-windows` (plus a no-op `net10.0`), MIT licensed.
+   The tool ships as a **.NET global tool** (`net10.0`), so `maui-inspector-sync` is on your
+   `PATH` right after installing — on a fresh machine open a new terminal first, and if the
+   command is still not found add `~/.dotnet/tools` (Windows: `%USERPROFILE%\.dotnet\tools`)
+   to `PATH`. Housekeeping:
 
-### Enable the inspector
+   ```bash
+   dotnet tool update    -g Immons.Tools.Maui.Inspector.Sync   # newer version
+   dotnet tool uninstall -g Immons.Tools.Maui.Inspector.Sync   # remove
+   dotnet tool list      -g                                    # what is installed
+   maui-inspector-sync --help                                  # all options
+   ```
 
-In `MauiProgram.cs` — ideally only for debug builds:
+   Prefer not to install it globally? `dotnet tool install --local` (with a
+   `dotnet-tools.json` manifest in the repo) works too — then run it as
+   `dotnet maui-inspector-sync`, and everyone on the team gets the same version.
 
-```csharp
-using Immons.Tools.Maui.Inspector;
+   Zero configuration, **all devices at once**: it scans localhost ports 9295–9309 and
+   watches **every** inspector it finds — each app keeps its own change cursor, all edits
+   land in the same sources — and keeps rescanning, so a simulator started later joins
+   automatically. One app reachable through several ports (old + new adb forwards) is
+   recognised by its instance id and watched exactly once. `--app` (repeatable or
+   comma-separated) pins explicit URLs; `--src` overrides the source folder.
 
-var builder = MauiApp.CreateBuilder();
-builder.UseMauiApp<App>();
+   Android plumbing is automatic and collision-aware: an emulator has its own loopback, so
+   the tool probes each connected device through temporary `adb forward`s, finds the ports
+   its inspectors actually listen on, and maps each onto a **free** host port from the same
+   range — stepping around ports already taken (an iOS simulator app, another forward).
+   `maui-inspector-sync forward` runs just this step and prints the URLs, useful when you
+   only want mirrors without watching sources.
 
-#if DEBUG
-builder.UseMauiInspector(options =>
-{
-    options.EnableWebServer = true;                        // desktop web panel
-    options.LongPressDuration = TimeSpan.FromMilliseconds(800);
-    // options.WebServerPort = 9295;                       // force a port (default: auto)
-    // options.LongPressTouchCount = 2;                    // avoid clashing with app long-presses
-    // options.ShakeToOpen = true;                         // shake the device to open the overlay
-    // options.MaxCapturedBodyBytes = 4 * 1024 * 1024;     // largest HTTP body kept for the Network view
-});
-#endif
-```
+   The panel header shows `XAML Updater ✓` once the tool is connected. When you open the
+   panel with editing off, it offers to enable it — and when no updater is running, it shows
+   the exact commands to start one (including the `adb forward` line when needed) and
+   verifies the tool is really polling before enabling.
 
-The web server picks a free port from **9295–9309** and prints the URL to the platform console
-and to the panel's Logs view:
+3. Toggle **✎ XAML** in the panel header. From now on every applied edit
+   (FontSize, colors, margins, styles, span/shadow attributes, `Grid.Row`, `{Binding …}`,
+   `{OnPlatform …}`…) is patched into the right attribute of the right tag — plain-text edits,
+   no reformatting. Style extraction inserts the `<Style>` block into the page resources,
+   setter and scalar-resource edits patch the owning dictionary file (located by `x:Key`).
+   Only the latest value per attribute is written; the toggle can be flipped on/off at any time.
+4. Pair it with your IDE's **XAML Hot Reload** and the loop closes: web edit → file save →
+   hot reload → app updates.
 
-```
-[MauiInspector] web inspector listening on http://localhost:9296/ (auto-assigned)
-```
+Safety: the XAML Updater verifies the element name at the recorded location and skips (with a warning)
+when the file has drifted — after editing XAML by hand, restart the app to refresh locations.
+Edits of objects that don't come from XAML (created in C#) are not recorded.
 
-`MauiInspector.WebServerUrl` returns the same URL at runtime (handy for a debug label in your app).
-
-- **iOS simulator** — open that URL on the Mac.
-- **Android emulator** — `adb forward tcp:<port> tcp:<port>` first (the XAML Updater tool does it for you).
-- **Physical devices** — use the device IP (Android needs the `INTERNET` permission, present by default).
-
-### Network traffic, mocks and logs (optional)
+## Network & HTTP mocking
 
 The **Network** and **Mocks** views only see traffic that flows through `MauiInspectorHttpHandler` —
 a standard `DelegatingHandler` you add to your `HttpClient` pipeline. Everything routed through it
@@ -278,86 +445,29 @@ The `#if DEBUG` guard matches the Debug-only `PackageReference` from
 builder.Logging.AddMauiInspector();
 ```
 
-### Manual control
+### The Network and Mocks views
 
-```csharp
-MauiInspector.Show();          // open the on-device overlay
-MauiInspector.Hide();
-MauiInspector.Toggle();
-MauiInspector.Inspect(someVisualElement);  // open with a specific element selected
-```
+**Network — requests, breakpoints and bodies**
 
-### Troubleshooting the connection
+![Network requests](docs/web-network.png)
 
-**The startup log says `self-probe on port N failed: …`** — the server bound the port but could
-not reach itself over loopback; the message carries the underlying reason. Before 0.9.9 this was
-misreported as `port N is shadowed by another process`, and the most common trigger was Android's
-cleartext policy (`Cleartext HTTP traffic to 127.0.0.1 not permitted` with `targetSdk` 28+) —
-0.9.9 probes with a handler that policy doesn't apply to, so if you still see it, take the quoted
-reason at face value.
+Every call that goes through `MauiInspectorHttpHandler` is recorded with full request and
+response bodies (click a row to expand). Breakpoints pause matching requests or responses so you
+can edit the body or status and continue — Proxyman-style, but inside the process, so TLS and
+certificate pinning are none of your concern.
 
-**The startup log says `port N is shadowed by another process`** — this one is real: something
-answered the probe with a wrong instance id. Usually a previous run of the same app is still
-alive; kill it or let the auto-assign pick the next port.
+**Mocks — rules, scenarios and recording**
 
-**The browser on your desktop can't connect (or spins forever) even though the app says
-`web inspector listening`** — the URL is served from *inside* the app, so the browser's route to
-it is what usually breaks:
+![Mock rules and scenarios](docs/web-mocks.png)
 
-- **Android emulator** — the emulator has its own network stack; without
-  `adb forward tcp:<port> tcp:<port>` nothing on the host answers `localhost:<port>`.
-- **A connection that hangs instead of being refused** is typically a *different* process holding
-  the port on your machine. iOS **simulator** apps run as host processes and hold their inspector
-  ports; when iOS suspends one in the background, its socket still accepts connections but never
-  responds — and an `adb forward` to the same port number silently loses that fight. Check with
-  `lsof -nP -iTCP:9295-9309 -sTCP:LISTEN` (macOS), then either foreground/kill the stale
-  simulator app, or forward to a shifted host port and browse to that:
-  `adb forward tcp:9305 tcp:9295` → open `http://localhost:9305`.
-- **iOS simulator** — bring the app to the foreground: iOS suspends a backgrounded app together
-  with its HTTP server, so the panel shows `app in background` and requests time out.
-- **Physical devices** — `localhost` won't do; use the device's IP (Android additionally needs
-  the `INTERNET` permission, present by default) or, on Android, `adb forward` over USB.
+Rules match on method + URL pattern (the most specific rule wins) and can replace the request or
+response body, force a status, add a delay, simulate a timeout or a network error, or answer
+completely without the network. Group them into **scenarios** ("premium user", "empty portfolio",
+"force update"), switch the active one from a picker, or hit **⏺ Record**, click through a flow and
+turn the whole request path into a replayable scenario. Rules survive app restarts, so even
+a version check fired on startup is already mocked.
 
-## Supported platforms
-
-| Platform | TFM | Activation |
-| --- | --- | --- |
-| Android (API 21+) | `net10.0-android` | long-press (1–2 fingers), shake |
-| iOS 15+ | `net10.0-ios` | long-press (1–2 fingers), shake |
-| Windows (WinUI 3) | `net10.0-windows10.0.19041.0` | `Ctrl+Shift+I` or touch press-and-hold |
-
-The `net10.0` target compiles to no-ops, so referencing the library never breaks other targets.
-The Windows target only builds on Windows machines (guarded in the csproj).
-
-## Features
-
-### Inspecting
-
-- **Visual tree** — the whole window, auto-expanded to the selection, with type names, `x:Name`/`StyleId`, text snippets and child counts. Search by type, `@x:Name`, `#AutomationId` or text (spans included); arrow keys walk the tree.
-- **Element picking** — with select mode (⌖) a single tap on the device picks an element; the hit test walks the real MAUI tree (through Shell intermediaries) in paint order.
-- **Box model overlay** — margin (orange), padding (green) and content (blue) fills, dashed alignment guides and a dimensions badge, drawn over the live app.
-- **Property sheet** — grouped sections (Element, Style, Bounds, Layout, Text, Appearance, Transform, Interaction, Accessibility, Control, ViewModel, All properties) with color swatches, the XAML source location, and a per-property filter.
-- **Layout Explorer** — the selected container's children drawn to scale (with `Grid` cells); click a child to select it.
-- **Debug paint (▦ Guides)** — Flutter-style outlines of every visible element, color-cycled by depth.
-- **Measure distances (↔)** — pick a second element and get Figma-style gaps or edge offsets (see [badges](#measure-mode-badges)).
-- **Mirror (📱)** — live device screenshots in the browser; click the image to select the element under the cursor.
-- **Console dump / diff** — the whole tree with bounds, margins, paddings, spacings, sibling gaps, fonts and colors, ready to compare against a Figma design; **Δ Diff** stores a baseline and shows exactly which lines changed.
-- **Accessibility** — editable `SemanticProperties` plus a WCAG contrast check against the effective background.
-- **Performance (⏱)** — live fps / average / worst frame time; **🐢 Slow** runs all animations 5× slower.
-
-### Editing
-
-- **Live editing** — text/number fields, switches and pickers for anything with a public setter: `FontSize`, `Margin`, `Padding`, `Text`, colors (`#RRGGBB`, `#AARRGGBB` or named), `Thickness` (`8`, `8,4`, `8,4,8,4`), enums, `LayoutOptions`, `Keyboard`, `Image.Source`… The highlight re-measures after every change.
-- **Markup extensions** — type `{Binding X}`, `{StaticResource Y}`, `{OnPlatform …}` or your own extension (`{extensions:Translate Key}`) into any editor and it is applied for real; a custom extension that cannot be instantiated is kept as a XAML-only edit instead of landing as literal `{…}` text.
-- **Suggestions** — text editors offer what actually fits the property: registered font aliases for `FontFamily`, and `{StaticResource Key}` type-ahead over the resources whose value matches the property type (colors for `TextColor`, doubles for `FontSize`, strings for `Text`…). The **⋔** button opens a small per-platform / per-idiom form (iOS · Android · WinUI, Phone · Tablet · Desktop); the applied expression is shown next to the value and remembered across app restarts.
-- **Binding-aware** — bound properties show a `⛓ {Binding …}` badge, and literal edits on them stay runtime-only so the binding expression in your XAML is never overwritten by a constant.
-- **Styles** — the current `Style` resolved to its resource key with all setters listed, and a picker to apply any other reachable style (local values are cleared so the style actually takes effect).
-- **Spans** — a `Label`'s `FormattedText` expands into per-span sections with add/remove, and can be created from the plain `Text`.
-- **Grid** — editable row/column definitions (`Auto`, `*`, `2*`, `48`) with add/remove, plus `Grid.Row/Column/RowSpan/ColumnSpan` on children.
-- **ViewModel** — the selected element's `BindingContext` properties, editable for simple types (in-memory only).
-- **Edit history** — every applied edit logged old → new, with one-click undo.
-
-### Network
+### Feature summary
 
 - **Recording** — method, status, timing, size and full request/response bodies for every call through `MauiInspectorHttpHandler`, with a filter over method/URL/status/tag and a **🧹 Clear** button to start from a clean slate.
 - **Mock rules** — method + URL pattern (substring or `*` wildcard; the most specific rule wins) → replace request/response body, force a status, delay, simulate timeout/network error, or answer entirely without the network.
@@ -367,9 +477,31 @@ The Windows target only builds on Windows machines (guarded in the csproj).
 - **Portable** — the whole state (scenarios + rules) exports/imports as one JSON file and persists on the device between runs; the browser also keeps a per-app backup and restores it after a reinstall.
 - **Scenarios reach your code** — `MauiInspector.IsScenarioActive("offline")` / `MauiInspector.ActiveScenario` let debug builds fake what HTTP interception cannot see (an MSAL sign-in, a native SDK, a sensor), so one picker can put the whole app offline.
 
-### Multi-device
+### Offline testing
 
-- **🖧 Devices** — scan localhost (or add `host:port`) to find other instances of the same app, then every property edit, structural action and mock-rule change is mirrored to the checked targets.
+HTTP interception covers everything that goes through `MauiInspectorHttpHandler`, but not what
+happens outside your process — an MSAL/OAuth sign-in runs in the system browser, and libraries with
+their own `HttpClient` bypass the handler until you route them through it
+(`.WithHttpClientFactory(…)` for MSAL). The scenario API bridges that gap:
+
+```csharp
+#if DEBUG
+if (MauiInspector.IsScenarioActive("offline"))
+{
+    // skip the real sign-in; every API call is answered by the scenario's rules
+    var user = await _users.CreateUser("offline-token");
+    return new AuthenticationResult(AuthenticationStatus.Authenticated, user);
+}
+#endif
+```
+
+Recipe: **⏺ Record** a full flow once online → **⏹ Stop** and name it `offline` → add the snippet
+above → from then on selecting that scenario runs the whole app with no network and no login.
+
+## Multi-device
+
+- **🖧 Devices** — scan localhost (or add `host:port`, single ports `9500`, lists `9500,9600` or ranges `9400-9420`) to find other instances of the same app, then every property edit, structural action and mock-rule change is mirrored to the checked targets.
+- **Device picker** — the header dropdown re-points the whole panel (tree, properties, mirror, resources) at another running app, so the phone layout can be inspected from the tablet's portal without a second tab.
 - Targets are addressed by **XAML source identity**, not by element ids — one edit reaches every device rendering that line, including every instance of a `DataTemplate`.
 - When a device renders a **different template or a different page variant** (an `AdaptiveTemplateView`-style control, `OnIdiom` layouts, or whole pages picked per form factor such as `Main_iPhone_Page` / `Main_iPad_Page`), that source line does not exist there, so the edit falls back to an identifier of the same type: **`AutomationId` first** (it exists to identify one element), then `StyleId` — which is also what MAUI fills from `x:Name`. The fallback is confined to the **counterpart page**: page type names are normalised by stripping form-factor tokens, so `Main_iPad_Page`, `Main_Android_Tablet_Page` and `MainPage` all count as `Main` and a same-named element on an unrelated screen is never touched.
 - `StyleId` is a **weak key** — it doubles as the MAUI CSS `#id` selector and nothing keeps it unique, so two unrelated controls can share one. Several matches are therefore accepted only when they all come from the **same XAML line** (the rows of one `DataTemplate`, which is exactly what fan-out should hit); matches from different lines are a name collision and are refused rather than guessed. No match, or an ambiguous one, is reported as `—`.
@@ -491,7 +623,34 @@ app on every connected device, matched by XAML source identity with the name/pag
 
 **Logs** — `GET /api/logs` returns what `builder.Logging.AddMauiInspector()` collected.
 
-## Storage backend
+## Reference
+
+### Supported platforms
+
+| Platform | TFM | Activation |
+| --- | --- | --- |
+| Android (API 21+) | `net10.0-android` | long-press (1–2 fingers), shake |
+| iOS 15+ | `net10.0-ios` | long-press (1–2 fingers), shake |
+| Windows (WinUI 3) | `net10.0-windows10.0.19041.0` | `Ctrl+Shift+I` or touch press-and-hold |
+
+The `net10.0` target compiles to no-ops, so referencing the library never breaks other targets.
+The Windows target only builds on Windows machines (guarded in the csproj).
+
+### Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `EnableWebServer` | `false` | Embedded web panel for desktop browsers. |
+| `WebServerPort` | `null` (auto) | `null` picks a free port from 9295–9309; a value forces that exact port. |
+| `Activation` | `LongPress` | `LongPress` or `None` (manual `Show()` only). |
+| `LongPressDuration` | 900 ms | Hold time before the overlay opens (iOS/Android). |
+| `LongPressTouchCount` | 1 | 1 or 2 fingers. |
+| `ShakeToOpen` | `false` | Shake the device to toggle the overlay. |
+| `PanelHeightFraction` | 0.45 | On-device panel height as a fraction of the window. |
+| `SeedRulesAsset` | `null` | Rule set (a panel export added as `MauiAsset`) imported when the app starts with no rules — see [UI tests](#ui-tests-maestro-appium). |
+| `MaxCapturedBodyBytes` | 4 MB | Largest HTTP body kept for the Network view; bigger ones are still logged and mockable, only the body is dropped. |
+
+### Storage backend
 
 By default everything the inspector persists — mock rules, scenarios, breakpoints, applied
 expressions — lives in `Preferences`. That is dependency-free and fine for a handful of rules, but
@@ -513,116 +672,7 @@ are the exception: they are keyed by an opaque hash and `Preferences` cannot be 
 are not migrated — they land in SQLite the next time you apply an edit. The database defaults to
 `maui-inspector.db3` in the app data folder; pass a path to put it elsewhere.
 
-## Offline testing
-
-HTTP interception covers everything that goes through `MauiInspectorHttpHandler`, but not what
-happens outside your process — an MSAL/OAuth sign-in runs in the system browser, and libraries with
-their own `HttpClient` bypass the handler until you route them through it
-(`.WithHttpClientFactory(…)` for MSAL). The scenario API bridges that gap:
-
-```csharp
-#if DEBUG
-if (MauiInspector.IsScenarioActive("offline"))
-{
-    // skip the real sign-in; every API call is answered by the scenario's rules
-    var user = await _users.CreateUser("offline-token");
-    return new AuthenticationResult(AuthenticationStatus.Authenticated, user);
-}
-#endif
-```
-
-Recipe: **⏺ Record** a full flow once online → **⏹ Stop** and name it `offline` → add the snippet
-above → from then on selecting that scenario runs the whole app with no network and no login.
-
-## Measure mode badges
-
-After enabling `↔` and picking a second element, distance labels appear on the overlay:
-
-| Badge | Meaning |
-| --- | --- |
-| `W × H` (dark) | Size of the **primary** (first selected) element — not a distance. |
-| `←n→` | Free **horizontal gap** between the two elements (outer spacing). |
-| `↑n↓` | Free **vertical gap** between the two elements (outer spacing). |
-| `L n` | Offset between the **left** edges of primary and compare. |
-| `R n` | Offset between the **right** edges. |
-| `T n` | Offset between the **top** edges. |
-| `B n` | Offset between the **bottom** edges. |
-
-**When which ones show**
-
-- Side-by-side (no X overlap): `←n→` plus `T` / `B` if those edges are not aligned.
-- Stacked (no Y overlap): `↑n↓` plus `L` / `R` if those edges are not aligned.
-- Diagonal (no overlap on either axis): `←n→` and `↑n↓`.
-- Nested / intersecting on both axes: `L` / `R` / `T` / `B` (no outer gap).
-
-Values are in **dp**. Aligned edges (delta ≈ 0) are omitted.
-
-## WYSIWYG: write edits back to your XAML (XAML Updater)
-
-The inspector can act as a real WYSIWYG editor: edits made in the web panel (or on the
-device) are written back into your XAML source files.
-
-1. In debug builds MAUI records the XAML source location (file + line) of every element —
-   `UseMauiInspector` enables this automatically. The panel shows it above the
-   properties (e.g. `MainPage.xaml:26:14`). **Requires runtime/XamlC inflation** — remove
-   `<MauiXamlInflator>SourceGen</MauiXamlInflator>` from the app project for Debug.
-2. Install the companion tool once, then run it from your app's source folder:
-
-   ```bash
-   dotnet tool install -g Immons.Tools.Maui.Inspector.Sync   # once
-   cd path/to/your/app
-   maui-inspector-sync
-   ```
-
-   The tool ships as a **.NET global tool** (`net10.0`), so `maui-inspector-sync` is on your
-   `PATH` right after installing — on a fresh machine open a new terminal first, and if the
-   command is still not found add `~/.dotnet/tools` (Windows: `%USERPROFILE%\.dotnet\tools`)
-   to `PATH`. Housekeeping:
-
-   ```bash
-   dotnet tool update    -g Immons.Tools.Maui.Inspector.Sync   # newer version
-   dotnet tool uninstall -g Immons.Tools.Maui.Inspector.Sync   # remove
-   dotnet tool list      -g                                    # what is installed
-   maui-inspector-sync --help                                  # all options
-   ```
-
-   Prefer not to install it globally? `dotnet tool install --local` (with a
-   `dotnet-tools.json` manifest in the repo) works too — then run it as
-   `dotnet maui-inspector-sync`, and everyone on the team gets the same version.
-
-   Zero configuration: it scans localhost ports 9295–9309 for a running inspector, sets up
-   `adb forward` automatically when adb is available (Android emulators), prints which
-   device it found and watches the current folder. `--app` / `--src` override when needed;
-   the panel header shows `XAML Updater ✓` once the tool is connected (and the exact
-   command to run when it is not).
-
-3. Toggle **✎ XAML** in the panel header. From now on every applied edit
-   (FontSize, colors, margins, styles, span/shadow attributes, `Grid.Row`, `{Binding …}`,
-   `{OnPlatform …}`…) is patched into the right attribute of the right tag — plain-text edits,
-   no reformatting. Only the latest value per attribute is written; the toggle can be flipped
-   on/off at any time.
-4. Pair it with your IDE's **XAML Hot Reload** and the loop closes: web edit → file save →
-   hot reload → app updates.
-
-Safety: the XAML Updater verifies the element name at the recorded location and skips (with a warning)
-when the file has drifted — after editing XAML by hand, restart the app to refresh locations.
-Edits of objects that don't come from XAML (created in C#) are not recorded.
-
-## Options
-
-| Option | Default | Description |
-| --- | --- | --- |
-| `EnableWebServer` | `false` | Embedded web panel for desktop browsers. |
-| `WebServerPort` | `null` (auto) | `null` picks a free port from 9295–9309; a value forces that exact port. |
-| `Activation` | `LongPress` | `LongPress` or `None` (manual `Show()` only). |
-| `LongPressDuration` | 900 ms | Hold time before the overlay opens (iOS/Android). |
-| `LongPressTouchCount` | 1 | 1 or 2 fingers. |
-| `ShakeToOpen` | `false` | Shake the device to toggle the overlay. |
-| `PanelHeightFraction` | 0.45 | On-device panel height as a fraction of the window. |
-| `SeedRulesAsset` | `null` | Rule set (a panel export added as `MauiAsset`) imported when the app starts with no rules — see [UI tests](#ui-tests-maestro-appium). |
-| `MaxCapturedBodyBytes` | 4 MB | Largest HTTP body kept for the Network view; bigger ones are still logged and mockable, only the body is dropped. |
-
-## How it works
+### How it works
 
 - `UseMauiInspector` appends to `WindowHandler.Mapper`, so every window gets an inspector when its handler connects.
 - Android: the activity's `Window.Callback` is wrapped to observe (never consume) touches for long-press detection; overlay layers are added to the `DecorView`. iOS: a non-cancelling `UILongPressGestureRecognizer` on the `UIWindow`; layers are added as window subviews. Windows: a `KeyboardAccelerator` + `Holding` handler on the root content.
@@ -631,7 +681,36 @@ Edits of objects that don't come from XAML (created in C#) are not recorded.
 - Element bounds come from the native views (`GetLocationInWindow` / `ConvertRectToView` / `TransformToVisual`), so scrolling and transforms are reflected.
 - HTTP interception is a plain `DelegatingHandler` — no proxy, no system certificates, nothing to trust.
 
-## Known limitations
+### Troubleshooting the connection
+
+**The startup log says `self-probe on port N failed: …`** — the server bound the port but could
+not reach itself over loopback; the message carries the underlying reason. A common Android trigger used to be
+the cleartext policy; current versions probe with a handler that policy doesn't apply to, so take
+the quoted reason at face value.
+
+**The startup log says `port N is shadowed by another process`** — this one is real: something
+answered the probe with a wrong instance id. Usually a previous run of the same app is still
+alive; kill it or let the auto-assign pick the next port.
+
+**The browser on your desktop can't connect (or spins forever) even though the app says
+`web inspector listening`** — the URL is served from *inside* the app, so the browser's route to
+it is what usually breaks:
+
+- **Android emulator** — the emulator has its own network stack; without
+  `adb forward tcp:<port> tcp:<port>` nothing on the host answers `localhost:<port>`.
+- **A connection that hangs instead of being refused** is typically a *different* process holding
+  the port on your machine. iOS **simulator** apps run as host processes and hold their inspector
+  ports; when iOS suspends one in the background, its socket still accepts connections but never
+  responds — and an `adb forward` to the same port number silently loses that fight. Check with
+  `lsof -nP -iTCP:9295-9309 -sTCP:LISTEN` (macOS), then either foreground/kill the stale
+  simulator app, or forward to a shifted host port and browse to that:
+  `adb forward tcp:9305 tcp:9295` → open `http://localhost:9305`.
+- **iOS simulator** — bring the app to the foreground: iOS suspends a backgrounded app together
+  with its HTTP server, so the panel shows `app in background` and requests time out.
+- **Physical devices** — `localhost` won't do; use the device's IP (Android additionally needs
+  the `INTERNET` permission, present by default) or, on Android, `adb forward` over USB.
+
+### Known limitations
 
 - The soft keyboard can cover the on-device panel while typing on phones — drag the panel up by its header, or use the web panel.
 - Full trimming/AOT of **release** builds may strip property setters used by the editors; the tool is intended for debug builds (wrap the registration in `#if DEBUG`).
@@ -639,4 +718,3 @@ Edits of objects that don't come from XAML (created in C#) are not recorded.
 - Breakpoints hold a request until you continue it — mind your `HttpClient.Timeout`.
 - Binary or very large (>128 KB) HTTP bodies are not captured and cannot be recorded into scenarios.
 - The Windows implementation compiles only on Windows and has not been exercised as thoroughly as iOS/Android yet.
-

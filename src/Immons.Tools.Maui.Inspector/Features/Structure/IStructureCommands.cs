@@ -13,7 +13,7 @@ internal interface IStructureCommands
     (int Id, string? Error) AddAt(Point windowPoint, string typeName);
 
     /// <summary>Container that would receive a drop at the point — its bounds and type name.</summary>
-    (Rect Bounds, string Label)? DropTargetAt(Point windowPoint);
+    (Rect Bounds, string Label, IReadOnlyList<Rect> Children)? DropTargetAt(Point windowPoint);
 
     /// <summary>Detaches the element; undo re-attaches the same instance.</summary>
     string? Remove(int elementId);
@@ -34,6 +34,12 @@ internal interface IStructureCommands
     /// container ancestor when the target itself cannot take children).
     /// </summary>
     (int Id, string? Error) Paste(int targetId, int sourceId, bool force);
+
+    /// <summary>
+    /// Moves the chosen local property values into a keyed Style in the page's resources and
+    /// re-points the element at it. Returns the element id for reselection.
+    /// </summary>
+    (int Id, string? Error) ExtractStyle(int elementId, string key, IReadOnlyCollection<string> propertyNames);
 
     /// <summary>Removes a container but keeps its children — they take its place in the parent.</summary>
     string? UnwrapElement(int elementId);

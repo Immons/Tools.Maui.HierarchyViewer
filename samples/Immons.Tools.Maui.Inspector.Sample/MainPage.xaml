@@ -3,6 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="SampleApp.MainPage">
 
+    <ContentPage.Resources>
+        <x:Double x:Key="TitleSize">26</x:Double>
+        <Shadow x:Key="CardShadow" Brush="#512BD4" Radius="14" Offset="0,6" Opacity="0.35" />
+        <Style x:Key="ShadowedCard" TargetType="Border">
+            <Setter Property="Shadow" Value="{StaticResource CardShadow}" />
+        </Style>
+    </ContentPage.Resources>
+
     <ScrollView>
         <VerticalStackLayout
             x:Name="RootStack"

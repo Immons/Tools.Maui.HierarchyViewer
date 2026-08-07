@@ -21,6 +21,7 @@ header .win { color: var(--text2); font-size: 12px; }
 #conn.down .dot { background: #e05252; animation: connblink 1.4s infinite; }
 #conn.down .win { color: #e05252; }
 @keyframes connblink { 50% { opacity: .3; } }
+#devicepick { min-width: 0; max-width: 320px; font-size: 12px; padding: 3px 6px; }
 header .ver { color: var(--text2); font-size: 12px; margin-left: 6px; }
 header .ver.verok::before { content: '✓ '; color: #6aa84f; }
 header .ver.verold { color: #d08770; font-weight: 600; }
@@ -78,6 +79,7 @@ input[type=text], select { background: var(--bg2); color: var(--text); border: 1
     border-radius: 5px; padding: 4px 8px; font: 12px ui-monospace, Menlo, Consolas, monospace; min-width: 260px; }
 input[type=text]:focus { outline: none; border-color: var(--accent); }
 input.bad { border-color: #e05252; }
+input.warn { border-color: var(--measure); }
 .ro { font: 12px ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
 .valrow { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .valrow input[type=text], .valrow select { flex: 0 1 auto; }
@@ -108,6 +110,8 @@ input.bad { border-color: #e05252; }
 #mirrorimg { max-width: 100%; max-height: 100%; object-fit: contain; cursor: crosshair; border-radius: 6px;
              will-change: transform; }
 #mirrorimg.panning { cursor: grabbing; }
+/* Focused with Select off = keys go to the device; make that state visible. */
+#mirrorimg:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 #mirrorzoom { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8px; z-index: 3;
               display: flex; gap: 8px; align-items: center; background: var(--bg2);
               border: 1px solid var(--divider); border-radius: 8px; padding: 4px 10px; opacity: .9; }
@@ -126,8 +130,12 @@ input.bad { border-color: #e05252; }
 #mirrorpanel.maximized.landscape { flex-direction: column; }
 #mirrorpanel.maximized.landscape #toolbox { width: auto; flex: none; align-self: stretch; max-height: 220px;
     border-left: none; margin-left: 0; border-top: 1px solid var(--divider); margin-top: 8px; padding: 8px 4px 4px; }
+/* Explicit row height: auto rows collapse here — the chips' overflow:hidden makes their
+   min-content 0, so the many rows get squeezed into the panel instead of scrolling. */
 #mirrorpanel.maximized.landscape #toolboxlist { display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px; align-content: start; }
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); grid-auto-rows: 26px;
+    gap: 4px; align-content: start; }
+#mirrorpanel.maximized.landscape .toolchip { box-sizing: border-box; }
 #mirrorpanel { position: relative; }
 #mirrorMaxBtn { position: absolute; top: 10px; left: 10px; z-index: 2; }
 /* Maximized mirror = third column: tree 25%, properties and mirror split the rest. */
@@ -242,7 +250,67 @@ input.bad { border-color: #e05252; }
 .catalogbadge.custom { color: var(--measure); }
 .catalogdesc { color: var(--text2); font-size: 12px; }
 .catalogdesc.empty { padding: 8px 10px; }
+.extractrow { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+.extractrow .catalogname { flex: none; width: 200px; }
+.extractrow .catalogdesc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+#adorners { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.alignpin { position: absolute; width: 10px; height: 10px; border-radius: 3px; pointer-events: auto;
+            background: var(--bg2); border: 1px solid var(--accent); cursor: pointer; }
+.alignpin.on { background: var(--accent); }
+.gridframe { position: absolute; pointer-events: none; outline: 1px dashed rgba(92,158,255,.5); }
+.gridline { position: absolute; pointer-events: auto; background: rgba(92,158,255,.18); }
+.gridline.v { width: 5px; cursor: col-resize; border-left: 1px dashed var(--accent); }
+.gridline.h { height: 5px; cursor: row-resize; border-top: 1px dashed var(--accent); }
+.gridline:hover { background: rgba(92,158,255,.4); }
+.gridaddbar { position: absolute; right: 2px; bottom: 2px; display: flex; gap: 4px; pointer-events: auto; }
+.gridaddbar button { padding: 1px 7px; font-size: 11px; opacity: .85; }
+.snapline { position: fixed; z-index: 47; pointer-events: none; background: #e8a33d; }
+.snapline.v { width: 1px; }
+.snapline.h { height: 1px; }
+#xamlpre { margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--divider); background: var(--bg2);
+           font: 12px ui-monospace, Menlo, Consolas, monospace; max-height: 32vh; overflow: auto;
+           white-space: pre; }
+/* XAML-editing offer: centered dialog, optionally with setup commands to copy. */
+#syncback { position: fixed; inset: 0; z-index: 56; background: rgba(0, 0, 0, .45);
+            display: flex; align-items: center; justify-content: center; }
+#syncback[hidden] { display: none; }
+#syncprompt { width: min(560px, 92vw); background: var(--bg); border: 1px solid var(--divider);
+              border-radius: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); padding: 16px 18px; }
+#syncprompt h3 { margin: 0 0 8px; font-size: 14px; }
+#syncbody { color: var(--text2); }
+#syncbody code { display: block; margin: 6px 0; padding: 6px 10px; background: var(--bg2);
+                 border: 1px solid var(--divider); border-radius: 6px; color: var(--text);
+                 font: 12px ui-monospace, Menlo, Consolas, monospace; user-select: all;
+                 overflow-x: auto; white-space: pre; }
+#syncbody .syncwarn { color: var(--measure); margin-top: 8px; }
+#syncbtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+#syncok.primary { border-color: var(--accent); color: var(--accent); }
+
+/* Resources is a centered popup over the whole UI. */
+#resback { position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .45);
+           display: flex; align-items: center; justify-content: center; }
+#resback[hidden] { display: none; }
+#respanel { width: min(820px, 92vw); max-height: 78vh; display: flex; flex-direction: column;
+            background: var(--bg); border: 1px solid var(--divider); border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+#reshead { display: flex; gap: 10px; align-items: center; padding: 8px 16px; }
+#reshead b { white-space: nowrap; }
+#reshead input { flex: 1; }
+#resourcelist { overflow: auto; padding: 0 16px 12px; }
+.resrow.setter { padding-left: 26px; }
+.resrow.subres { padding-left: 48px; }
+.resrow.subres .reskey { width: 272px; color: var(--text2); }
+.resrow.setter .reskey { width: 294px; color: var(--text); }
+.resrow input.setterval { min-width: 160px; }
+.resrow.hiddenbyfilter, .resgroup.hiddenbyfilter { display: none; }
+.resgroup h2 { color: var(--accent); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+               margin: 18px 0 6px; border-bottom: 1px solid var(--divider); padding-bottom: 4px; }
+.resrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+.reskey { width: 320px; color: var(--text2); font: 12px ui-monospace, Menlo, Consolas, monospace;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resvalue { color: var(--text2); font-size: 12px; }
+.resrow .swatch { width: 16px; height: 16px; }
 .hentry.undone { opacity: .5; }
 .hentry.undone .vals { text-decoration: line-through; }
 .row.dragging { opacity: .45; }

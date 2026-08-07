@@ -1,18 +1,22 @@
 using System.Text.Json.Nodes;
 using Immons.Tools.Maui.Inspector.Sync;
 
-string? app = null;
+var apps = new List<string>();
 var src = Directory.GetCurrentDirectory();
 var intervalMs = 1000;
 var fromNow = false;
 var dryRun = false;
+var forwardOnly = false;
 
 for (var i = 0; i < args.Length; i++)
 {
     switch (args[i])
     {
+        case "forward":
+            forwardOnly = true;
+            break;
         case "--app" when i + 1 < args.Length:
-            app = args[++i].TrimEnd('/');
+            apps.AddRange(args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries).Select(u => u.TrimEnd('/')));
             break;
         case "--src" when i + 1 < args.Length:
             src = Path.GetFullPath(args[++i]);
@@ -38,7 +42,16 @@ for (var i = 0; i < args.Length; i++)
                 `adb forward` automatically when adb is available) and watches the current
                 folder. Options for anything non-default:
 
-                  --app        Base URL of the running app's web inspector (skips scanning).
+                Just setting up Android port forwarding (no watching):
+
+                    maui-inspector-sync forward
+
+                It finds inspectors inside connected Android emulators/devices and maps each
+                onto a free host port from the 9295-9309 range — useful when the "natural"
+                port is already taken by e.g. an iOS simulator app.
+
+                  --app        Base URL(s) of running web inspectors, comma-separated or repeated
+                               (skips scanning). One updater serves every device at once.
                   --src        Root folder that contains the XAML sources (searched recursively).
                   --interval   Poll interval in milliseconds (default 1000).
                   --from-now   Ignore edits made before the updater started.
@@ -62,140 +75,156 @@ if (!Directory.Exists(src))
 
 var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-if (app == null)
+if (forwardOnly)
 {
-    int[] candidates = Enumerable.Range(9295, 15).ToArray();
-    Console.WriteLine("scanning localhost for a running inspector…");
-    app = await Discover(http, candidates);
-
-    if (app == null && await TryAdbForward(candidates))
-        app = await Discover(http, candidates);
-
-    if (app == null)
+    var forwards = await AdbForwarder.EnsureForwards(http, Enumerable.Range(9295, 15).ToArray());
+    if (forwards.Count == 0)
     {
-        app = "http://localhost:9295";
-        Console.WriteLine($"none found yet — will keep trying {app} (start the app with options.EnableWebServer = true)");
+        Console.WriteLine("no inspectors found on connected Android devices (is adb on PATH and the app running with the inspector enabled?)");
+        return 1;
     }
+    foreach (var forward in forwards)
+        Console.WriteLine($"{forward.Serial}  device port {forward.DevicePort} → http://localhost:{forward.HostPort}  ({forward.Device})");
+    Console.WriteLine("open any of the URLs above — the Devices tab of each sees the others.");
+    return 0;
 }
 
-Console.WriteLine($"XAML Updater: watching {app} → {src}{(dryRun ? "  (dry run)" : "")}");
+// No explicit --app: watch every inspector found, and keep adopting new ones as they appear.
+// One app can be reachable on several host ports (old + new adb forwards) — the /api/ping
+// instance nonce keeps each running app watched exactly once.
+var watchedInstances = new HashSet<string>();
+var autoDiscover = apps.Count == 0;
+int[] scanPorts = Enumerable.Range(9295, 15).ToArray();
+if (autoDiscover)
+{
+    Console.WriteLine("scanning localhost for running inspectors…");
+
+    var forwards = await AdbForwarder.EnsureForwards(http, scanPorts);
+    foreach (var forward in forwards)
+        Console.WriteLine($"adb forward: {forward.Serial} device port {forward.DevicePort} → http://localhost:{forward.HostPort}  ({forward.Device})");
+
+    apps.AddRange(await Discover(http, scanPorts, [], watchedInstances));
+    if (apps.Count == 0)
+        Console.WriteLine("none found yet — will keep scanning (start the app with options.EnableWebServer = true)");
+}
+
+Console.WriteLine($"XAML Updater: watching {(apps.Count > 0 ? string.Join(", ", apps) : "(waiting)")} → {src}{(dryRun ? "  (dry run)" : "")}");
 Console.WriteLine("Enable the \"✎ XAML\" toggle in the web inspector to record edits. Ctrl+C to stop.");
 var patcher = new XamlPatcher(src, dryRun);
-long since = 0;
-var connected = false;
+var cursors = new Dictionary<string, long>();
+var connectedApps = new HashSet<string>();
 
-if (fromNow)
-{
-    try
-    {
-        var initial = JsonNode.Parse(await http.GetStringAsync($"{app}/api/changes?since=0&caps=el"));
-        since = initial?["seq"]?.GetValue<long>() ?? 0;
-    }
-    catch
-    {
-        // app not up yet — fine, we'll catch up below
-    }
-}
+foreach (var url in apps)
+    cursors[url] = fromNow ? await CurrentSeq(http, url) : 0;
 
+var tick = 0;
+var knownSerials = await AdbForwarder.SerialsSafe();
 while (true)
 {
-    try
+    // The scan is cheap once apps answer; silent ports cost a short timeout each,
+    // so a rescan every ~15 s keeps newly launched devices joining automatically.
+    if (autoDiscover && tick % Math.Max(1, 15000 / intervalMs) == 0 && tick > 0)
     {
-        var json = JsonNode.Parse(await http.GetStringAsync($"{app}/api/changes?since={since}&caps=el"));
-        if (!connected)
+        // A new Android device needs its forwards before any port scan can see it —
+        // the expensive probing runs only when the adb device list actually changes.
+        var serials = await AdbForwarder.SerialsSafe();
+        if (!serials.SetEquals(knownSerials))
         {
-            connected = true;
-            Console.WriteLine($"connected to {app}");
+            knownSerials = serials;
+            foreach (var forward in await AdbForwarder.EnsureForwards(http, scanPorts))
+                Console.WriteLine($"adb forward: {forward.Serial} device port {forward.DevicePort} → http://localhost:{forward.HostPort}  ({forward.Device})");
         }
 
-        foreach (var node in json?["changes"] as JsonArray ?? [])
+        foreach (var url in await Discover(http, scanPorts, apps, watchedInstances, quiet: true))
         {
-            if (node == null)
-                continue;
-
-            var change = new XamlChange(
-                node["source"]?.GetValue<string>() ?? "",
-                node["line"]?.GetValue<int>() ?? 0,
-                node["column"]?.GetValue<int>() ?? 0,
-                node["element"]?.GetValue<string>() ?? "",
-                node["attribute"]?.GetValue<string>() ?? "",
-                node["value"]?.GetValue<string>() ?? "",
-                node["remove"]?.GetValue<bool>() ?? false,
-                node["op"]?.GetValue<string>() ?? "attr");
-
-            patcher.Apply(change);
-        }
-
-        since = json?["seq"]?.GetValue<long>() ?? since;
-    }
-    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-    {
-        if (connected)
-        {
-            connected = false;
-            Console.WriteLine("app not reachable — waiting…");
+            apps.Add(url);
+            cursors[url] = fromNow ? await CurrentSeq(http, url) : 0;
+            Console.WriteLine($"attached {url}");
         }
     }
-    catch (Exception ex)
+
+    foreach (var url in apps)
     {
-        Console.Error.WriteLine($"error: {ex.Message}");
+        try
+        {
+            var json = JsonNode.Parse(await http.GetStringAsync($"{url}/api/changes?since={cursors[url]}&caps=el"));
+            if (connectedApps.Add(url))
+                Console.WriteLine($"connected to {url}");
+
+            foreach (var node in json?["changes"] as JsonArray ?? [])
+            {
+                if (node == null)
+                    continue;
+
+                var change = new XamlChange(
+                    node["source"]?.GetValue<string>() ?? "",
+                    node["line"]?.GetValue<int>() ?? 0,
+                    node["column"]?.GetValue<int>() ?? 0,
+                    node["element"]?.GetValue<string>() ?? "",
+                    node["attribute"]?.GetValue<string>() ?? "",
+                    node["value"]?.GetValue<string>() ?? "",
+                    node["remove"]?.GetValue<bool>() ?? false,
+                    node["op"]?.GetValue<string>() ?? "attr");
+
+                patcher.Apply(change);
+            }
+
+            cursors[url] = json?["seq"]?.GetValue<long>() ?? cursors[url];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            if (connectedApps.Remove(url))
+                Console.WriteLine($"{url} not reachable — waiting…");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"error ({url}): {ex.Message}");
+        }
     }
 
     await Task.Delay(intervalMs);
+    tick++;
 }
 
-static async Task<string?> Discover(HttpClient http, int[] ports)
+static async Task<long> CurrentSeq(HttpClient http, string url)
 {
-    var found = new List<(string Url, string Device)>();
+    try
+    {
+        var initial = JsonNode.Parse(await http.GetStringAsync($"{url}/api/changes?since=0&caps=el"));
+        return initial?["seq"]?.GetValue<long>() ?? 0;
+    }
+    catch
+    {
+        return 0; // app not up yet — it will replay from the start once reachable
+    }
+}
+
+static async Task<List<string>> Discover(
+    HttpClient http, int[] ports, IReadOnlyCollection<string> known, HashSet<string> instances, bool quiet = false)
+{
+    var found = new List<string>();
     foreach (var port in ports)
     {
         var baseUrl = $"http://localhost:{port}";
+        if (known.Contains(baseUrl))
+            continue;
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(700));
-            var json = JsonNode.Parse(await http.GetStringAsync($"{baseUrl}/api/tree", cts.Token));
-            found.Add((baseUrl, json?["device"]?.GetValue<string>() ?? ""));
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(quiet ? 300 : 700));
+            var json = JsonNode.Parse(await http.GetStringAsync($"{baseUrl}/api/ping", cts.Token));
+            var device = json?["device"]?.GetValue<string>() ?? "";
+            var instance = json?["instance"]?.GetValue<string>() ?? baseUrl;
+            if (!instances.Add(instance))
+                continue; // same app already watched through another host port
+            found.Add(baseUrl);
+            if (!quiet)
+                Console.WriteLine($"found inspector at {baseUrl}{(string.IsNullOrEmpty(device) ? "" : $"  ({device})")}");
         }
         catch
         {
             // nothing on this port
         }
     }
-
-    if (found.Count == 0)
-        return null;
-
-    foreach (var (url, device) in found)
-        Console.WriteLine($"found inspector at {url}{(string.IsNullOrEmpty(device) ? "" : $"  ({device})")}");
-    if (found.Count > 1)
-        Console.WriteLine($"multiple inspectors found — using {found[0].Url}; pass --app to pick another");
-
-    return found[0].Url;
+    return found;
 }
 
-// Sets up adb port forwarding for Android emulators/devices; false when adb is unavailable.
-static async Task<bool> TryAdbForward(int[] ports)
-{
-    try
-    {
-        foreach (var port in ports)
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo("adb", $"forward tcp:{port} tcp:{port}")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            using var process = System.Diagnostics.Process.Start(psi);
-            if (process == null)
-                return false;
-            await process.WaitForExitAsync();
-        }
-        Console.WriteLine("adb forward set up for ports 9295-9309");
-        return true;
-    }
-    catch
-    {
-        return false; // adb not installed — iOS-only setup
-    }
-}

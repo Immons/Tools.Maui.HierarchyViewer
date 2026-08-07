@@ -52,6 +52,14 @@ internal static class ApiRoutes
         public const string AddAt = "/api/structure/add-at";
         public const string DropTarget = "/api/structure/drop-target";
         public const string Hit = "/api/structure/hit";
+        public const string GridInfo = "/api/structure/grid-info";
+    }
+
+    public static class Resources
+    {
+        public const string List = "/api/resources";
+        public const string Set = "/api/resources/set";
+        public const string SetSetter = "/api/resources/set-setter";
     }
 
     public static class History
@@ -107,6 +115,8 @@ internal static class ApiRoutes
     {
         public const string Screenshot = "/api/screenshot";
         public const string SelectAt = "/api/select-at";
+        public const string Tap = "/api/tap";
+        public const string Key = "/api/key";
     }
 
     public static class Broadcast

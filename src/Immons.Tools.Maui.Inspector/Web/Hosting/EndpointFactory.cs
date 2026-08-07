@@ -34,6 +34,7 @@ internal static class EndpointFactory
             new MockRulesEndpoint(InspectorServices.Current.NetworkRules, InspectorServices.Current.Recorder),
             new InterceptEndpoint(InspectorServices.Current.Breakpoints),
             new LogsEndpoint(InspectorServices.Current.Logs),
+            new Features.Editing.Web.ResourcesEndpoint(mainThread, inspectors, xamlChanges),
             new ChangesEndpoint(xamlChanges, sync),
             new MirrorEndpoint(mainThread, inspectors),
             new MeasureEndpoint(mainThread, inspectors, elements),

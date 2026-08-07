@@ -9,6 +9,9 @@
 <header>
   <div id="headtop">
     <h1>MAUI Inspector</h1>
+    <select id="devicepick" title="Which device this whole panel inspects" onchange="switchDevice(this.value)" onfocus="refreshDevicePick()">
+      <option value="">This device</option>
+    </select>
     <span class="ver" id="ver"></span>
     <span class="win" id="perfout"></span>
     <span id="hint"></span>
@@ -34,10 +37,10 @@
   <div id="view-inspector" class="view">
     <div id="left">
       <div id="treeactions">
-        <button id="selectBtn" onclick="toggleSelect()" title="Single taps on the device pick elements (no on-device panel)">⌖ Select</button>
-        <button id="overlayBtn" onclick="toggleOverlay()" title="Show/hide the full inspector panel on the device">▤ Panel</button>
-        <button id="measureBtn" onclick="toggleMeasure()">↔︎ Measure</button>
-        <button id="paintBtn" onclick="togglePaint()" title="Outline every element on the device (debug paint)">▦︎ Guides</button>
+        <button id="selectBtn" onclick="toggleSelect()" title="Single taps on the device pick elements (no on-device panel) — shortcut: S">⌖ Select</button>
+        <button id="overlayBtn" onclick="toggleOverlay()" title="Show/hide the full inspector panel on the device — shortcut: P">▤ Panel</button>
+        <button id="measureBtn" onclick="toggleMeasure()" title="Pick a second element to measure distances — shortcut: M">↔︎ Measure</button>
+        <button id="paintBtn" onclick="togglePaint()" title="Outline every element on the device (debug paint) — shortcut: G">▦︎ Guides</button>
         <button id="mirrorBtn" onclick="toggleMirror()" title="Live screenshot of the device — click it to select elements">📱 Mirror</button>
         <button onclick="clearHl()" title="Clear the on-device highlight">🧹</button>
         <button onclick="refreshAll()" title="Reload the tree">↻</button>
@@ -69,10 +72,33 @@
     <div id="right">
       <div id="propbar">
         <input type="text" id="propfilter" placeholder="Filter properties…" oninput="filterProps(this.value)">
+        <button id="xamlPreviewBtn" onclick="toggleXamlPreview()" title="XAML the serializer would write for the selection">⟨/⟩</button>
+        <button id="resBtn" onclick="toggleResources()" title="Resource dictionaries — colors and style setters are editable">🎨 Resources</button>
         <button id="histBtn" onclick="toggleHistory()" title="Edit history with undo">⟲ History</button>
       </div>
+      <pre id="xamlpre" hidden></pre>
       <div id="props"><div id="empty">Click an element in the tree — it will also be highlighted on the device.<br>
         Selecting on the device (long-press / tap) highlights here too.</div></div>
+      <div id="syncback" hidden>
+        <div id="syncprompt">
+          <h3 id="synctitle"></h3>
+          <div id="syncbody"></div>
+          <div id="syncbtns">
+            <button id="syncok" class="primary"></button>
+            <button onclick="closeSyncPrompt()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="resback" hidden onclick="if (event.target === this) toggleResources()">
+        <div id="respanel">
+          <div id="reshead">
+            <b>Resources</b>
+            <input type="text" id="ressearch" placeholder="Search key, style, setter…" oninput="filterResources(this.value)">
+            <button onclick="toggleResources()" title="Close">✕</button>
+          </div>
+          <div id="resourcelist"></div>
+        </div>
+      </div>
       <div id="histpanel" hidden>
         <div id="histhead">
           <b>Edit history</b>
@@ -93,6 +119,7 @@
   </div>
   <div id="view-logs" class="view fullview" hidden><div id="loglist"></div></div>
 
+
   <div id="view-devices" class="view fullview" hidden>
     <div class="devicesintro">Edits made in this panel are mirrored to every checked target —
       the same app running on other simulators, emulators or physical devices (matched by XAML source identity).</div>
@@ -100,13 +127,14 @@
       <button onclick="scanMirrors()">🔍 Scan localhost</button>
       <button id="mirrorclean" onclick="removeUnreachableMirrors()" hidden
               title="Drop targets that no longer answer — ports get reused between runs"></button>
-      <input type="text" id="mirroraddr" placeholder="host:port (e.g. 192.168.1.20:9295)">
+      <input type="text" id="mirroraddr" placeholder="host:port · or ports to scan: 9500,9600 / 9400-9420">
       <button onclick="addMirrorManually()">+ Add</button>
     </div>
     <span id="mirrorslist"></span>
   </div>
 </main>
 <script src="/js/state.js"></script>
+<script src="/js/devicepick.js"></script>
 <script src="/js/views.js"></script>
 <script src="/js/toolbar.js"></script>
 <script src="/js/tree.js"></script>
@@ -114,6 +142,7 @@
 <script src="/js/tabs.js"></script>
 <script src="/js/mock.js"></script>
 <script src="/js/structure.js"></script>
+<script src="/js/resources.js"></script>
 <script src="/js/mirrors.js"></script>
 <script src="/js/diff.js"></script>
 <script src="/js/keyboard.js"></script>

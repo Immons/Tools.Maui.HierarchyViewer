@@ -77,6 +77,8 @@ internal sealed class ElementJsonBuilder(
             rowObj["expr"] = row.DeviceExpression;
         if (row.Resources is { Count: > 0 } resources)
             rowObj["resources"] = new JsonArray(resources.Select(r => (JsonNode)r!).ToArray());
+        if (row.Note != null)
+            rowObj["note"] = row.Note;
         if (row.Action != null)
             rowObj["isAction"] = true;
         if (row.Editor is { } editor)

@@ -32,3 +32,23 @@ document.addEventListener('keydown', (e) => {
     if (c) c.textContent = collapse ? '▸' : '▾';
   }
 });
+
+// Single-key mode toggles — no modifiers, never while typing (inputs, search) and never
+// while the mirror streams keys to the device (Select off + mirror focused).
+const modeShortcuts = {
+  s: () => toggleSelect(),
+  m: () => toggleMeasure(),
+  g: () => togglePaint(),
+  p: () => toggleOverlay(),
+};
+
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+  if (t && t.id === 'mirrorimg' && !selectMode) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const toggle = modeShortcuts[e.key.toLowerCase()];
+  if (!toggle) return;
+  e.preventDefault();
+  toggle();
+});

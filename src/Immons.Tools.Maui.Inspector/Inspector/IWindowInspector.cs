@@ -38,6 +38,12 @@ internal interface IWindowInspector
 
     bool RemoteSelectAt(Point windowPoint);
 
+    /// <summary>Delivers a real (or semantic) tap to the app at the given window-dp point.</summary>
+    bool RemoteTapAt(Point windowPoint);
+
+    /// <summary>Types text / presses an editing key in the app's focused text input.</summary>
+    bool RemoteKey(string? text, string? key);
+
     void RemoteSelect(VisualElement element);
 
     void RemoteMeasure(VisualElement primary, VisualElement? compare);

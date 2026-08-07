@@ -23,6 +23,9 @@ internal sealed class RemoteServer
     /// <summary>Base URL of the running server, null when not started.</summary>
     public static string? Url => _instance == null ? null : $"http://localhost:{_instance._port}";
 
+    /// <summary>The port the app itself listens on — differs from the browser's port behind adb forward.</summary>
+    public static int? Port => _instance?._port;
+
     /// <summary>Why the server failed to start, null when fine (or not attempted).</summary>
     public static string? StartError { get; private set; }
 

@@ -29,6 +29,16 @@ internal sealed class SelectionJsonBuilder(
             return result.ToJsonString();
 
         result["id"] = inspector.SelectedElement is { } selected ? elements.GetId(selected) : null;
+        if (inspector.SelectedElement is { } sel)
+        {
+            if (inspector.BoundsOf(sel) is { } rect)
+                result["rect"] = new JsonObject { ["x"] = rect.X, ["y"] = rect.Y, ["w"] = rect.Width, ["h"] = rect.Height };
+            if (sel is View view)
+            {
+                result["halign"] = view.HorizontalOptions.Alignment.ToString();
+                result["valign"] = view.VerticalOptions.Alignment.ToString();
+            }
+        }
         result["compare"] = inspector.CompareElement is { } compare ? elements.GetId(compare) : null;
         result["measure"] = inspector.MeasureMode;
         result["select"] = inspector.RemoteSelectModeActive;

@@ -30,6 +30,21 @@ internal interface IXamlChangeLog
     /// <summary>Undoes <see cref="RecordElementRemove"/> — the tool restores the exact removed text.</summary>
     void RestoreElement(StructureOp op);
 
+    /// <summary>
+    /// Edits one setter of a style resource. Anchored by the style's key/TargetType inside the
+    /// dictionary's source file — setters carry no line information of their own.
+    /// </summary>
+    void RecordStyleSetter(string? dictionarySource, string styleKey, string targetType, string property, string value);
+
+    /// <summary>New value of a scalar/color resource, keyed by dictionary file + x:Key.</summary>
+    void RecordResourceValue(string? dictionarySource, string key, string value);
+
+    /// <summary>Inserts a Style block into the page's resources (upsert per op; cancel on undo).</summary>
+    void RecordStyleResource(StructureOp op);
+
+    /// <summary>Undoes <see cref="RecordStyleResource"/> — the tool takes the style block back out.</summary>
+    void CancelStyleResource(StructureOp op);
+
     /// <summary>Moves an element's XAML span before/after the sibling it jumped over.</summary>
     void RecordElementMove(StructureOp op);
 

@@ -74,6 +74,111 @@ internal static class ResourceLookup
         return keys.ToList();
     }
 
+    /// <summary>Key under which this exact instance lives in a reachable dictionary; null when none.</summary>
+    public static string? KeyOf(object? context, object value)
+    {
+        var seen = new HashSet<ResourceDictionary>();
+        string? found = null;
+
+        void Search(ResourceDictionary? rd)
+        {
+            if (rd == null || found != null || !seen.Add(rd))
+                return;
+            try
+            {
+                foreach (var pair in rd)
+                {
+                    if (ReferenceEquals(pair.Value, value))
+                    {
+                        found = pair.Key;
+                        return;
+                    }
+                }
+            }
+            catch
+            {
+                // see TryFind
+            }
+            foreach (var merged in rd.MergedDictionaries)
+                Search(merged);
+            try
+            {
+                Search(MergedInstanceField?.GetValue(rd) as ResourceDictionary);
+            }
+            catch
+            {
+                // see TryFind
+            }
+        }
+
+        for (var current = context as Element; current != null; current = current.Parent)
+            Search(ResourcesOf(current));
+        Search(Application.Current?.Resources);
+        return found;
+    }
+
+    /// <summary>
+    /// Key of the resource a resolved value came from: reference identity first; boxed
+    /// structs (Thickness, CornerRadius…) can lose identity through conversion, so a
+    /// value-equal match of the same type is accepted when it is unambiguous.
+    /// </summary>
+    public static string? KeyOfResolved(object? context, object value)
+    {
+        if (KeyOf(context, value) is { } exact)
+            return exact;
+
+        string? found = null;
+        var ambiguous = false;
+        foreach (var (key, candidate) in AllPairs(context))
+        {
+            if (candidate == null || candidate.GetType() != value.GetType() || !Equals(candidate, value))
+                continue;
+            if (found != null && found != key)
+            {
+                ambiguous = true;
+                break;
+            }
+            found = key;
+        }
+        return ambiguous ? null : found;
+    }
+
+    static IEnumerable<(string Key, object? Value)> AllPairs(object? context)
+    {
+        var seen = new HashSet<ResourceDictionary>();
+        var results = new List<(string, object?)>();
+
+        void Collect(ResourceDictionary? rd)
+        {
+            if (rd == null || !seen.Add(rd))
+                return;
+            try
+            {
+                foreach (var pair in rd)
+                    results.Add((pair.Key, pair.Value));
+            }
+            catch
+            {
+                // see TryFind
+            }
+            foreach (var merged in rd.MergedDictionaries)
+                Collect(merged);
+            try
+            {
+                Collect(MergedInstanceField?.GetValue(rd) as ResourceDictionary);
+            }
+            catch
+            {
+                // see TryFind
+            }
+        }
+
+        for (var current = context as Element; current != null; current = current.Parent)
+            Collect(ResourcesOf(current));
+        Collect(Application.Current?.Resources);
+        return results;
+    }
+
     static bool Fits(object? value, Type propertyType)
     {
         if (value == null || value is Style || value is ResourceDictionary)

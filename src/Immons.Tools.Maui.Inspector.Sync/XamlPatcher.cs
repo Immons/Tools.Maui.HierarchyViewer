@@ -215,6 +215,15 @@ public sealed class XamlPatcher
             case "unwrap-el":
                 patched = ApplyElementUnwrap(text, state, change, out message, out report);
                 break;
+            case "style-res":
+                patched = ApplyStyleResource(text, state, change, out message, out report);
+                break;
+            case "setter":
+                patched = ApplyStyleSetter(text, state, change, out message, out report);
+                break;
+            case "res-val":
+                patched = ApplyResourceValue(text, state, change, out message, out report);
+                break;
             default:
                 patched = PatchAttribute(text, state, change, out message);
                 report = $"{change.Element}.{change.Attribute} {(change.Remove ? "removed" : $"= \"{change.Value}\"")}";
@@ -379,11 +388,11 @@ public sealed class XamlPatcher
         var tagName = shortName;
         if (!typeName.StartsWith("Microsoft.Maui.Controls", StringComparison.Ordinal))
         {
-            var ensured = EnsureXmlns(text, typeName, assembly, out var prefix, out message);
+            var ensured = EnsureXmlns(text, typeName, assembly, out var prefix, out message, out var xmlnsAt);
             if (ensured == null)
                 return null;
             if (!ReferenceEquals(ensured, text))
-                state.RecordEdit(1, 0, ensured.Length - text.Length); // inline inside the root tag
+                state.RecordEdit(xmlnsAt, 0, ensured.Length - text.Length);
             text = ensured;
             tagName = $"{prefix}:{shortName}";
         }
@@ -402,11 +411,11 @@ public sealed class XamlPatcher
                     continue;
 
                 var ensured = EnsureXmlnsForNamespace(text, match.Groups[1].Value, match.Groups[2].Value,
-                    out var actualPrefix, out message);
+                    out var actualPrefix, out message, out var xmlnsAt);
                 if (ensured == null)
                     return null;
                 if (!ReferenceEquals(ensured, text))
-                    state.RecordEdit(1, 0, ensured.Length - text.Length); // inline inside the root tag
+                    state.RecordEdit(xmlnsAt, 0, ensured.Length - text.Length);
                 text = ensured;
 
                 if (actualPrefix != localPrefix)
@@ -764,11 +773,11 @@ public sealed class XamlPatcher
         var tagName = shortName;
         if (!typeName.StartsWith("Microsoft.Maui.Controls", StringComparison.Ordinal))
         {
-            var ensured = EnsureXmlns(text, typeName, assembly, out var prefix, out message);
+            var ensured = EnsureXmlns(text, typeName, assembly, out var prefix, out message, out var xmlnsAt);
             if (ensured == null)
                 return null;
             if (!ReferenceEquals(ensured, text))
-                state.RecordEdit(1, 0, ensured.Length - text.Length); // inline inside the root tag
+                state.RecordEdit(xmlnsAt, 0, ensured.Length - text.Length);
             text = ensured;
             tagName = $"{prefix}:{shortName}";
         }
@@ -945,6 +954,262 @@ public sealed class XamlPatcher
         return result;
     }
 
+    // ---- style resources ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Inserts a Style block into the page's &lt;Root.Resources&gt; (creating the property
+    /// element right after the root tag when missing). Cancel removes the tracked span.
+    /// </summary>
+    string? ApplyStyleResource(string text, FileState state, XamlChange change, out string message, out string report)
+    {
+        message = "";
+        report = "";
+        var opId = change.Attribute;
+
+        if (change.Remove)
+        {
+            if (!state.Inserts.TryGetValue(opId, out var span))
+            {
+                report = "style not inserted in this session — nothing to take back";
+                return text;
+            }
+            var result = DropInsertSpan(text, state, opId, span);
+            report = "extracted style taken back out";
+            return result;
+        }
+
+        JsonObject? payload;
+        try
+        {
+            payload = JsonNode.Parse(change.Value) as JsonObject;
+        }
+        catch
+        {
+            payload = null;
+        }
+        var xml = payload?["xml"]?.GetValue<string>();
+        if (xml == null)
+        {
+            message = "unreadable style payload";
+            return null;
+        }
+
+        if (payload?["xmlns"] is JsonObject xmlnsMap)
+        {
+            foreach (var (localPrefix, declarationNode) in xmlnsMap)
+            {
+                var declaration = declarationNode?.GetValue<string>() ?? "";
+                var match = Regex.Match(declaration, @"^clr-namespace:([^;]+);assembly=(.+)$");
+                if (!match.Success)
+                    continue;
+                var ensured = EnsureXmlnsForNamespace(text, match.Groups[1].Value, match.Groups[2].Value,
+                    out var actualPrefix, out message, out var xmlnsAt);
+                if (ensured == null)
+                    return null;
+                if (!ReferenceEquals(ensured, text))
+                    state.RecordEdit(xmlnsAt, 0, ensured.Length - text.Length);
+                text = ensured;
+                if (actualPrefix != localPrefix)
+                    xml = xml.Replace("\"" + localPrefix + ":", "\"" + actualPrefix + ":");
+            }
+        }
+
+        var offset = ResolveAnchor(text, state, change.Line, change.Column);
+        if (offset < 0)
+        {
+            message = "line/column out of range (file changed since the app was built? restart the app)";
+            return null;
+        }
+        var rootQName = XamlTagScanner.ReadQName(text, offset);
+        if (XamlTagScanner.LocalNameOf(rootQName) != change.Element)
+        {
+            message = $"expected page root <{change.Element}> here but found \"{Snippet(text, offset)}\"";
+            return null;
+        }
+        var rootTagEnd = XamlTagScanner.FindTagEnd(text, offset);
+        if (rootTagEnd < 0 || XamlTagScanner.IsSelfClosing(text, rootTagEnd))
+        {
+            message = "the page root has no content to hold resources";
+            return null;
+        }
+
+        var rootIndent = IndentOfLine(text, offset);
+        var step = rootIndent.Contains('\t') ? "\t" : "    ";
+        var resourcesTag = $"{rootQName}.Resources";
+
+        var resOpen = text.IndexOf($"<{resourcesTag}", rootTagEnd, StringComparison.Ordinal);
+        string inserted;
+        int insertOffset;
+        if (resOpen >= 0)
+        {
+            var resClose = text.IndexOf($"</{resourcesTag}>", resOpen, StringComparison.Ordinal);
+            if (resClose < 0)
+            {
+                message = $"could not find </{resourcesTag}>";
+                return null;
+            }
+            var resIndent = IndentOfLine(text, resOpen + 1);
+            var lineStart = LineStartOf(text, resClose);
+            insertOffset = text[lineStart..resClose].Trim().Length == 0 ? lineStart : resClose;
+            inserted = string.Join("\n", xml.Split('\n').Select(l => resIndent + step + l)) + "\n";
+        }
+        else
+        {
+            // No resources yet — create the property element right after the root's open tag.
+            var afterRoot = rootTagEnd;
+            while (afterRoot < text.Length && text[afterRoot] != '\n')
+                afterRoot++;
+            insertOffset = Math.Min(text.Length, afterRoot + 1);
+            var body = string.Join("\n", xml.Split('\n').Select(l => rootIndent + step + step + l));
+            inserted = $"\n{rootIndent}{step}<{resourcesTag}>\n{body}\n{rootIndent}{step}</{resourcesTag}>\n";
+        }
+
+        var patched = text.Insert(insertOffset, inserted);
+        state.RecordEdit(insertOffset, 0, inserted.Length);
+        state.Inserts[opId] = (insertOffset, inserted.Length, "");
+
+        report = "style inserted into page resources";
+        return patched;
+    }
+
+    /// <summary>
+    /// Edits one setter of a style located by x:Key (or, for implicit styles, by TargetType) —
+    /// no line anchors involved, so it works in any resource file the updater can find.
+    /// </summary>
+    string? ApplyStyleSetter(string text, FileState state, XamlChange change, out string message, out string report)
+    {
+        message = "";
+        report = "";
+
+        JsonObject? payload;
+        try
+        {
+            payload = JsonNode.Parse(change.Value) as JsonObject;
+        }
+        catch
+        {
+            payload = null;
+        }
+        if (payload == null)
+        {
+            message = "unreadable setter payload";
+            return null;
+        }
+        var key = payload["key"]?.GetValue<string>() ?? "";
+        var targetType = payload["targetType"]?.GetValue<string>() ?? "";
+        var property = payload["property"]?.GetValue<string>() ?? "";
+        var value = payload["value"]?.GetValue<string>() ?? "";
+
+        // Keyed style first; implicit styles are keyed by the type's full name at runtime.
+        var keyPattern = "<Style\\b[^>]*x:Key=\"" + Regex.Escape(key) + "\"";
+        var styleMatch = Regex.Match(text, keyPattern);
+        if (!styleMatch.Success)
+        {
+            var implicitPattern = "<Style\\b(?![^>]*x:Key)[^>]*TargetType=\"(?:\\w+:)?" + Regex.Escape(targetType) + "\"";
+            styleMatch = Regex.Match(text, implicitPattern);
+        }
+        if (!styleMatch.Success)
+        {
+            message = $"style \"{key}\" not found in this file";
+            return null;
+        }
+
+        var nameOffset = styleMatch.Index + 1;
+        var (closeStart, _) = XamlTagScanner.FindClosingTag(text, nameOffset, "Style");
+        if (closeStart < 0)
+        {
+            message = "could not find </Style>";
+            return null;
+        }
+
+        var setterPattern = "<Setter\\b[^>]*Property=\"" + Regex.Escape(property) + "\"[^>]*";
+        var setterMatch = Regex.Match(text[styleMatch.Index..closeStart], setterPattern);
+        string? patched;
+        if (setterMatch.Success)
+        {
+            var setterOffset = styleMatch.Index + setterMatch.Index + 1;
+            var setterChange = change with { Element = "Setter", Attribute = "Value", Value = value, Op = "attr", Remove = false };
+            patched = Patch(text, setterChange, setterOffset, out message);
+            if (patched == null)
+                return null;
+            state.RecordEdit(setterOffset + 1, 0, patched.Length - text.Length);
+        }
+        else
+        {
+            var indent = IndentOfLine(text, nameOffset) + (IndentOfLine(text, nameOffset).Contains('\t') ? "\t" : "    ");
+            var lineStart = LineStartOf(text, closeStart);
+            var insertAt = text[lineStart..closeStart].Trim().Length == 0 ? lineStart : closeStart;
+            var inserted = $"{indent}<Setter Property=\"{property}\" Value=\"{EscapeAttributeValue(value)}\" />\n";
+            patched = text.Insert(insertAt, inserted);
+            state.RecordEdit(insertAt, 0, inserted.Length);
+        }
+
+        report = $"Style {(key.Length > 0 ? key : targetType)}: Setter {property} = \"{value}\"";
+        return patched;
+    }
+
+    /// <summary>
+    /// Replaces the text content of a scalar resource ("&lt;x:Double x:Key="K"&gt;36&lt;/x:Double&gt;",
+    /// Color, String, Thickness…) located by x:Key — no line anchors, works in any dictionary file.
+    /// </summary>
+    string? ApplyResourceValue(string text, FileState state, XamlChange change, out string message, out string report)
+    {
+        message = "";
+        report = "";
+
+        JsonObject? payload;
+        try
+        {
+            payload = JsonNode.Parse(change.Value) as JsonObject;
+        }
+        catch
+        {
+            payload = null;
+        }
+        var key = payload?["key"]?.GetValue<string>();
+        var value = payload?["value"]?.GetValue<string>();
+        if (key == null || value == null)
+        {
+            message = "unreadable resource payload";
+            return null;
+        }
+
+        var keyMatch = Regex.Match(text, "x:Key=\"" + Regex.Escape(key) + "\"");
+        if (!keyMatch.Success)
+        {
+            message = $"resource \"{key}\" not found in this file";
+            return null;
+        }
+
+        var tagStart = text.LastIndexOf('<', keyMatch.Index);
+        if (tagStart < 0)
+        {
+            message = $"could not locate the tag of resource \"{key}\"";
+            return null;
+        }
+        var qname = XamlTagScanner.ReadQName(text, tagStart + 1);
+        var tagEnd = XamlTagScanner.FindTagEnd(text, tagStart);
+        if (tagEnd < 0 || XamlTagScanner.IsSelfClosing(text, tagEnd))
+        {
+            message = $"resource \"{key}\" has no text content to edit";
+            return null;
+        }
+        var closeStart = text.IndexOf($"</{qname}>", tagEnd, StringComparison.Ordinal);
+        if (closeStart < 0)
+        {
+            message = $"could not find </{qname}> for resource \"{key}\"";
+            return null;
+        }
+
+        var contentStart = tagEnd;
+        var content = value.Replace("&", "&amp;").Replace("<", "&lt;");
+        var patched = text[..contentStart] + content + text[closeStart..];
+        state.RecordEdit(contentStart, closeStart - contentStart, content.Length);
+
+        report = $"resource {key} = \"{value}\"";
+        return patched;
+    }
+
     static string RenderOpenTag(string tagName, JsonObject? attrs)
     {
         var parts = new List<string> { tagName };
@@ -1032,17 +1297,21 @@ public sealed class XamlPatcher
     // ---- helpers ---------------------------------------------------------------------------
 
     /// <summary>Finds (or adds, inline on the root tag) an xmlns for the control's namespace.</summary>
-    static string? EnsureXmlns(string text, string typeName, string assembly, out string prefix, out string message)
+    static string? EnsureXmlns(string text, string typeName, string assembly, out string prefix, out string message, out int insertAt)
     {
         var lastDot = typeName.LastIndexOf('.');
         var clrNamespace = lastDot > 0 ? typeName[..lastDot] : typeName;
-        return EnsureXmlnsForNamespace(text, clrNamespace, assembly, out prefix, out message);
+        return EnsureXmlnsForNamespace(text, clrNamespace, assembly, out prefix, out message, out insertAt);
     }
 
     static string? EnsureXmlnsForNamespace(string text, string clrNamespace, string assembly, out string prefix, out string message)
+        => EnsureXmlnsForNamespace(text, clrNamespace, assembly, out prefix, out message, out _);
+
+    static string? EnsureXmlnsForNamespace(string text, string clrNamespace, string assembly, out string prefix, out string message, out int insertAt)
     {
         prefix = "";
         message = "";
+        insertAt = -1;
 
         var existing = Regex.Match(text,
             $@"xmlns:([\w]+)\s*=\s*""clr-namespace:{Regex.Escape(clrNamespace)}(;assembly=[^""]*)?""");
@@ -1064,7 +1333,7 @@ public sealed class XamlPatcher
             candidate = $"ctl{i}";
         prefix = candidate;
 
-        var insertAt = rootMatch.Index + 1 + rootMatch.Groups[1].Length;
+        insertAt = rootMatch.Index + 1 + rootMatch.Groups[1].Length;
         var xmlns = $" xmlns:{prefix}=\"clr-namespace:{clrNamespace};assembly={assembly}\"";
         return text.Insert(insertAt, xmlns);
     }

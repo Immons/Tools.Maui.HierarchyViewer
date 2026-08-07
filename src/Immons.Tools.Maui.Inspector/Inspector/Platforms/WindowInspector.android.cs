@@ -147,6 +147,9 @@ internal sealed partial class WindowInspector
     /// Screenshot captures only the activity window, so with a modal open the mirror
     /// would show the page underneath it. Null when no modal is up — the regular
     /// screenshot path is both correct and cheaper then.
+    /// Each window is captured via PixelCopy (the real GPU frame); software Draw is only
+    /// a fallback, as it misses hardware-rendered content (render-node animations,
+    /// surface-backed views), which showed up as elements missing from the mirror.
     /// </summary>
     private partial byte[]? CapturePngPlatform()
     {
@@ -164,8 +167,9 @@ internal sealed partial class WindowInspector
         var canvas = new Android.Graphics.Canvas(bitmap);
         var origin = new int[2];
         decor.GetLocationOnScreen(origin);
-        decor.Draw(canvas);
+        CaptureWindow(_activity.Window, decor, canvas, 0, 0);
 
+        var dialogWindows = DialogWindows();
         var drawn = new HashSet<AView> { decor };
         foreach (var modal in modals)
         {
@@ -177,15 +181,113 @@ internal sealed partial class WindowInspector
 
             var loc = new int[2];
             root.GetLocationOnScreen(loc);
-            canvas.Save();
-            canvas.Translate(loc[0] - origin[0], loc[1] - origin[1]);
-            root.Draw(canvas);
-            canvas.Restore();
+            dialogWindows.TryGetValue(root, out var dialogWindow);
+            CaptureWindow(dialogWindow, root, canvas, loc[0] - origin[0], loc[1] - origin[1]);
         }
 
         using var stream = new MemoryStream();
         bitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Png!, 100, stream);
         return stream.ToArray();
+    }
+
+    /// <summary>Modal pages live in DialogFragments; their windows keyed by decor view.</summary>
+    Dictionary<AView, Android.Views.Window> DialogWindows()
+    {
+        var map = new Dictionary<AView, Android.Views.Window>();
+        if (_activity is not AndroidX.Fragment.App.FragmentActivity fragmentActivity)
+            return map;
+        try
+        {
+            foreach (var fragment in fragmentActivity.SupportFragmentManager.Fragments)
+            {
+                if (fragment is AndroidX.Fragment.App.DialogFragment { Dialog.Window: { } dialogWindow }
+                    && dialogWindow.DecorView is { } dialogDecor)
+                    map.TryAdd(dialogDecor, dialogWindow);
+            }
+        }
+        catch
+        {
+            // fragment manager may be torn down mid-navigation — Draw fallback covers it
+        }
+        return map;
+    }
+
+    /// <summary>PixelCopy of the window's frame at (x, y); falls back to software Draw.</summary>
+    static void CaptureWindow(Android.Views.Window? window, AView root, Android.Graphics.Canvas canvas, int x, int y)
+    {
+        if (window != null && root.Width > 0 && root.Height > 0 && TryPixelCopy(window, root, canvas, x, y))
+            return;
+
+        canvas.Save();
+        canvas.Translate(x, y);
+        root.Draw(canvas);
+        canvas.Restore();
+    }
+
+    static bool TryPixelCopy(Android.Views.Window window, AView root, Android.Graphics.Canvas canvas, int x, int y)
+    {
+        if (!OperatingSystem.IsAndroidVersionAtLeast(26))
+            return false;
+        try
+        {
+            using var windowBitmap = Android.Graphics.Bitmap.CreateBitmap(
+                root.Width, root.Height, Android.Graphics.Bitmap.Config.Argb8888!);
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            PixelCopy.Request(window, windowBitmap, new PixelCopyListener(completion), PixelCopyHandler());
+            // The listener fires on a dedicated handler thread, so waiting here is safe
+            // even though captures run on the main thread.
+            if (!completion.Task.Wait(1000) || !completion.Task.Result)
+                return false;
+            canvas.DrawBitmap(windowBitmap, x, y, null);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    static Android.OS.Handler? _pixelCopyHandler;
+
+    static Android.OS.Handler PixelCopyHandler()
+    {
+        if (_pixelCopyHandler == null)
+        {
+            var thread = new Android.OS.HandlerThread("maui-inspector-pixelcopy");
+            thread.Start();
+            _pixelCopyHandler = new Android.OS.Handler(thread.Looper!);
+        }
+        return _pixelCopyHandler;
+    }
+
+    sealed class PixelCopyListener(TaskCompletionSource<bool> completion)
+        : Java.Lang.Object, PixelCopy.IOnPixelCopyFinishedListener
+    {
+        public void OnPixelCopyFinished(int copyResult) =>
+            completion.TrySetResult(copyResult == (int)PixelCopyResult.Success);
+    }
+
+    /// <summary>Dispatches a real down+up touch pair to the topmost window's decor.</summary>
+    private partial bool InjectTapPlatform(Point windowDp)
+    {
+        if (HostDecor() is not { } decor)
+            return false;
+        try
+        {
+            var density = Density;
+            var x = (float)(windowDp.X * density);
+            var y = (float)(windowDp.Y * density);
+            var now = Android.OS.SystemClock.UptimeMillis();
+            using var down = MotionEvent.Obtain(now, now, MotionEventActions.Down, x, y, 0);
+            using var up = MotionEvent.Obtain(now, now + 50, MotionEventActions.Up, x, y, 0);
+            decor.DispatchTouchEvent(down);
+            decor.DispatchTouchEvent(up);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private partial double GetBottomInsetPlatform()
